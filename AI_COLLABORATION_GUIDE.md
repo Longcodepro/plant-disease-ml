@@ -79,17 +79,53 @@ print_evaluation_summary(metrics, model_name="ResNet50_Nam")
 * **`accuracy`:** Độ chính xác tổng quát.
 * **`latency_per_image_ms`:** Độ trễ khi dự đoán 1 bức ảnh (mili-giây), tiêu chí quan trọng để đưa vào API.
 * **`model_size_mb`:** Dung lượng mô hình khi lưu trữ.
-```text
-plant-disease-ml/
-├── data/                 # Chứa dữ liệu train/valid/test (bị ignore trên Git)
-├── notebooks/            # 👈 NƠI CÁC BẠN CODE & TRAIN MÔ HÌNH TẠI ĐÂY
-├── models/               # Nơi lưu checkpoint .pth và file nhãn class_indices.json
-├── backend/              # FastAPI Serving (Đã viết sẵn, tự động nạp model qua biến môi trường)
-├── frontend/             # Streamlit Web UI tương tác demo
-├── scripts/
-│   └── download_data.py  # Script tải và tự động bung dataset vào data/
-└── README.md             # Hướng dẫn chung
+
+---
+
+## 4. CODE MẪU KHỞI ĐẦU DÀNH CHO AI (STARTER TEMPLATE)
+Dưới đây là khung code mẫu tối thiểu mà AI của thành viên có thể copy để bắt đầu ngay trong notebook mới (ví dụ `notebooks/03_resnet18_nam.ipynb`):
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import models
+
+# 1. Dùng chung pipeline dữ liệu
+from notebooks.data_pipeline import build_dataloaders
+train_loader, valid_loader, idx_to_class, class_weights = build_dataloaders(data_dir="data", batch_size=64)
+
+# 2. Định nghĩa kiến trúc mô hình (Ví dụ: ResNet18)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+model.fc = nn.Linear(model.fc.in_features, len(idx_to_class)) # 38 lớp
+model = model.to(device)
+
+# 3. Huấn luyện (Training Loop)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.AdamW(model.parameters(), lr=1e-3)
+
+# ... (Vòng lặp train các epochs ở đây) ...
+
+# 4. Đánh giá bằng công cụ chung chuẩn hóa
+from notebooks.eval_engine import evaluate_model, print_evaluation_summary
+metrics = evaluate_model(model, valid_loader, device=device, criterion=criterion)
+print_evaluation_summary(metrics, model_name="ResNet18_Nam")
+
+# 5. Lưu mô hình chuẩn để thi đấu và cắm vào API
+torch.save({
+    "model_name": "resnet18",
+    "author": "Nam",
+    "num_classes": len(idx_to_class),
+    "val_accuracy": metrics["accuracy"],
+    "val_f1_macro": metrics["macro_f1"],
+    "model_state_dict": model.state_dict()
+}, "models/resnet18_nam.pth")
 ```
+
+---
+
+## 5. CẤU TRÚC REPOSITORY (DECOUPLED ARCHITECTURE)
 
 ---
 
