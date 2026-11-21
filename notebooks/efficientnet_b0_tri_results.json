@@ -1,0 +1,353 @@
+{
+  "status": "completed",
+  "model_name": "efficientnet_b0",
+  "author": "Tri",
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "cuda_version": "12.6",
+  "torch_version": "2.14.1+cu126",
+  "total_vram_mb": 4095.6,
+  "overall_peak_vram_mb": 1469.2,
+  "config": {
+    "data_dir": "data",
+    "epochs_phase1": 2,
+    "epochs_phase2": 8,
+    "batch_size": 32,
+    "num_workers": 4,
+    "lr_head_p1": 0.001,
+    "lr_backbone_p2": 0.0001,
+    "lr_head_p2": 0.0005,
+    "weight_decay": 0.0001,
+    "label_smoothing": 0.05,
+    "dropout": 0.3,
+    "patience": 3,
+    "subset_fraction": 1.0,
+    "seed": 42,
+    "amp_fp16": true
+  },
+  "dataset": {
+    "num_classes": 38,
+    "train_samples": 70295,
+    "valid_samples": 17572
+  },
+  "total_train_time_sec": 3778.15,
+  "best_epoch": 7,
+  "final_metrics": {
+    "accuracy": 0.9996,
+    "macro_f1": 0.9996,
+    "weighted_f1": 0.9996,
+    "macro_precision": 0.9996,
+    "macro_recall": 0.9996,
+    "latency_per_image_ms": 0.82,
+    "throughput_fps": 1220.1,
+    "total_parameters": 4056226,
+    "model_size_mb": 15.47,
+    "val_loss": 0.3845,
+    "checkpoint_file_size_mb": 15.76
+  },
+  "baseline1_metrics": {
+    "accuracy": 0.0287,
+    "macro_f1": 0.0015,
+    "weighted_f1": 0.0016,
+    "macro_precision": 0.0008,
+    "macro_recall": 0.0263,
+    "latency_per_image_ms": 0.18,
+    "throughput_fps": 5499.9,
+    "total_parameters": 427174,
+    "model_size_mb": 1.63,
+    "val_loss": 9.0855,
+    "checkpoint_file_size_mb": 1.64
+  },
+  "top_5_confusions": [
+    {
+      "true_class": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+      "pred_class": "Corn_(maize)___Northern_Leaf_Blight",
+      "count": 1
+    },
+    {
+      "true_class": "Corn_(maize)___Northern_Leaf_Blight",
+      "pred_class": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+      "count": 1
+    },
+    {
+      "true_class": "Corn_(maize)___Northern_Leaf_Blight",
+      "pred_class": "Corn_(maize)___Common_rust_",
+      "count": 1
+    },
+    {
+      "true_class": "Tomato___Late_blight",
+      "pred_class": "Tomato___healthy",
+      "count": 1
+    },
+    {
+      "true_class": "Tomato___Spider_mites Two-spotted_spider_mite",
+      "pred_class": "Tomato___Target_Spot",
+      "count": 1
+    }
+  ],
+  "worst_5_classes": [
+    {
+      "class_name": "Tomato___Target_Spot",
+      "f1_score": 0.9967,
+      "precision": 0.9978,
+      "recall": 0.9956,
+      "support": 457
+    },
+    {
+      "class_name": "Corn_(maize)___Northern_Leaf_Blight",
+      "f1_score": 0.9969,
+      "precision": 0.9979,
+      "recall": 0.9958,
+      "support": 477
+    },
+    {
+      "class_name": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+      "f1_score": 0.9976,
+      "precision": 0.9976,
+      "recall": 0.9976,
+      "support": 410
+    },
+    {
+      "class_name": "Tomato___Spider_mites Two-spotted_spider_mite",
+      "f1_score": 0.9977,
+      "precision": 0.9977,
+      "recall": 0.9977,
+      "support": 435
+    },
+    {
+      "class_name": "Tomato___Late_blight",
+      "f1_score": 0.9989,
+      "precision": 1.0,
+      "recall": 0.9978,
+      "support": 463
+    }
+  ],
+  "best_5_classes": [
+    {
+      "class_name": "Tomato___Tomato_mosaic_virus",
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "support": 448
+    },
+    {
+      "class_name": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "support": 490
+    },
+    {
+      "class_name": "Tomato___Leaf_Mold",
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "support": 470
+    },
+    {
+      "class_name": "Tomato___Early_blight",
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "support": 480
+    },
+    {
+      "class_name": "Tomato___Bacterial_spot",
+      "f1_score": 1.0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "support": 425
+    }
+  ],
+  "history": [
+    {
+      "epoch": 1,
+      "phase": 1,
+      "phase_name": "Warm-up (Frozen Backbone)",
+      "train_loss": 0.941,
+      "train_acc": 0.8692,
+      "val_loss": 0.654,
+      "val_acc": 0.9483,
+      "val_macro_f1": 0.9478,
+      "val_weighted_f1": 0.948,
+      "val_macro_precision": 0.9492,
+      "val_macro_recall": 0.9478,
+      "val_latency_ms": 9.34,
+      "train_sec": 376.03,
+      "epoch_total_sec": 513.66,
+      "train_throughput_img_s": 186.9,
+      "peak_vram_mb": 985.3,
+      "lr": 0.00055
+    },
+    {
+      "epoch": 2,
+      "phase": 1,
+      "phase_name": "Warm-up (Frozen Backbone)",
+      "train_loss": 0.7391,
+      "train_acc": 0.9164,
+      "val_loss": 0.6275,
+      "val_acc": 0.9586,
+      "val_macro_f1": 0.958,
+      "val_weighted_f1": 0.9583,
+      "val_macro_precision": 0.959,
+      "val_macro_recall": 0.9581,
+      "val_latency_ms": 0.81,
+      "train_sec": 353.89,
+      "epoch_total_sec": 430.37,
+      "train_throughput_img_s": 198.6,
+      "peak_vram_mb": 372.2,
+      "lr": 0.0001
+    },
+    {
+      "epoch": 3,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.5242,
+      "train_acc": 0.978,
+      "val_loss": 0.44,
+      "val_acc": 0.9946,
+      "val_macro_f1": 0.9944,
+      "val_weighted_f1": 0.9946,
+      "val_macro_precision": 0.9947,
+      "val_macro_recall": 0.9943,
+      "val_latency_ms": 0.88,
+      "train_sec": 444.15,
+      "epoch_total_sec": 476.05,
+      "train_throughput_img_s": 158.3,
+      "peak_vram_mb": 1469.2,
+      "lr": 9.62e-05
+    },
+    {
+      "epoch": 4,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.4397,
+      "train_acc": 0.9941,
+      "val_loss": 0.411,
+      "val_acc": 0.9965,
+      "val_macro_f1": 0.9964,
+      "val_weighted_f1": 0.9965,
+      "val_macro_precision": 0.9966,
+      "val_macro_recall": 0.9963,
+      "val_latency_ms": 0.85,
+      "train_sec": 314.21,
+      "epoch_total_sec": 346.0,
+      "train_throughput_img_s": 223.7,
+      "peak_vram_mb": 1465.3,
+      "lr": 8.55e-05
+    },
+    {
+      "epoch": 5,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.4165,
+      "train_acc": 0.9968,
+      "val_loss": 0.3979,
+      "val_acc": 0.9977,
+      "val_macro_f1": 0.9976,
+      "val_weighted_f1": 0.9977,
+      "val_macro_precision": 0.9976,
+      "val_macro_recall": 0.9976,
+      "val_latency_ms": 0.88,
+      "train_sec": 310.05,
+      "epoch_total_sec": 341.92,
+      "train_throughput_img_s": 226.7,
+      "peak_vram_mb": 1465.3,
+      "lr": 6.94e-05
+    },
+    {
+      "epoch": 6,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.4041,
+      "train_acc": 0.9981,
+      "val_loss": 0.3876,
+      "val_acc": 0.9992,
+      "val_macro_f1": 0.9992,
+      "val_weighted_f1": 0.9992,
+      "val_macro_precision": 0.9992,
+      "val_macro_recall": 0.9992,
+      "val_latency_ms": 0.9,
+      "train_sec": 302.85,
+      "epoch_total_sec": 334.68,
+      "train_throughput_img_s": 232.1,
+      "peak_vram_mb": 1465.3,
+      "lr": 5.05e-05
+    },
+    {
+      "epoch": 7,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.3966,
+      "train_acc": 0.9986,
+      "val_loss": 0.3845,
+      "val_acc": 0.9996,
+      "val_macro_f1": 0.9996,
+      "val_weighted_f1": 0.9996,
+      "val_macro_precision": 0.9996,
+      "val_macro_recall": 0.9996,
+      "val_latency_ms": 0.73,
+      "train_sec": 304.94,
+      "epoch_total_sec": 336.21,
+      "train_throughput_img_s": 230.5,
+      "peak_vram_mb": 1465.3,
+      "lr": 3.16e-05
+    },
+    {
+      "epoch": 8,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.3922,
+      "train_acc": 0.9991,
+      "val_loss": 0.3828,
+      "val_acc": 0.9992,
+      "val_macro_f1": 0.9992,
+      "val_weighted_f1": 0.9992,
+      "val_macro_precision": 0.9992,
+      "val_macro_recall": 0.9992,
+      "val_latency_ms": 0.83,
+      "train_sec": 295.96,
+      "epoch_total_sec": 327.75,
+      "train_throughput_img_s": 237.5,
+      "peak_vram_mb": 1465.3,
+      "lr": 1.55e-05
+    },
+    {
+      "epoch": 9,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.389,
+      "train_acc": 0.9993,
+      "val_loss": 0.3811,
+      "val_acc": 0.9994,
+      "val_macro_f1": 0.9994,
+      "val_weighted_f1": 0.9994,
+      "val_macro_precision": 0.9994,
+      "val_macro_recall": 0.9994,
+      "val_latency_ms": 0.81,
+      "train_sec": 302.67,
+      "epoch_total_sec": 334.3,
+      "train_throughput_img_s": 232.2,
+      "peak_vram_mb": 1465.3,
+      "lr": 4.8e-06
+    },
+    {
+      "epoch": 10,
+      "phase": 2,
+      "phase_name": "Fine-tune (Full Unfrozen)",
+      "train_loss": 0.388,
+      "train_acc": 0.9994,
+      "val_loss": 0.3803,
+      "val_acc": 0.9995,
+      "val_macro_f1": 0.9995,
+      "val_weighted_f1": 0.9995,
+      "val_macro_precision": 0.9995,
+      "val_macro_recall": 0.9995,
+      "val_latency_ms": 0.86,
+      "train_sec": 304.58,
+      "epoch_total_sec": 336.58,
+      "train_throughput_img_s": 230.8,
+      "peak_vram_mb": 1465.3,
+      "lr": 1e-06
+    }
+  ]
+}
