@@ -132,10 +132,12 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
    - Tách đồ thị mô hình khỏi PyTorch, kiểm chứng độ khớp tuyệt đối (**Max abs diff = `1.07e-06`**).
    - CPU latency trên Colab giảm từ **`173.0 ms` (PyTorch) → `118.9 ms` (ONNX Runtime)** (**nhanh hơn 1.46x** ngay trên CPU 2-core ảo).
 2. **Nén ONNX INT8 Quantization — Dynamic & Static ([`scripts/quantize_onnx.py`](scripts/quantize_onnx.py)):**
-   - **Dynamic Quantization (`--mode dynamic`, `QUInt8` trên `MatMul`/`Gemm`):** Giảm dung lượng thực tế từ **`106.3 MB → 32.3 MB` (giảm 3.29x)**, giữ độ tương đồng đầu ra **`Cosine Sim = 0.999192`**.
-   - **Phát hiện thực nghiệm quan trọng (Trade-off phần cứng):** Trên CPU Intel Xeon ảo của Colab (không có tập lệnh `AVX-512 VNNI`), Dynamic INT8 **chậm hơn ONNX FP32** (`113.1 ms → 151.1 ms`, tỷ lệ `0.75x`) do chi phí ép kiểu động `DynamicQuantizeLinear` trên 36 lớp `MatMul` với feature map ảnh lớn (`56×56`, `28×28`).
-   - **Static Quantization (`--mode static`, QDQ + `quant_pre_process` + Calibration 150 ảnh rải đều 38 lớp):** Tính cố định `scale/zero_point` trước khi deploy nhằm loại bỏ bước `DynamicQuantizeLinear` lúc runtime — tối ưu cho CPU có tập lệnh INT8 (Intel VNNI / Apple Silicon ARM DotProd).
-   - **Kết luận triển khai thực tế:** Chọn **ONNX FP32** khi ưu tiên tốc độ trên Server/CPU thông thường (`113–119 ms`), chọn **ONNX INT8 (`32.3 MB`)** khi bị giới hạn dung lượng lưu trữ/Docker/RAM.
+   - **Dynamic Quantization (`--mode dynamic`, `QUInt8` trên `MatMul`/`Gemm`):** Giảm dung lượng thực tế từ **`106.3 MB → 32.3 MB` (nhẹ hơn 3.29x)**, giữ nguyên **100% độ chính xác trên tập `data/test` (`33/33`)** và **`Cosine Sim = 0.999192`** → lưu trực tiếp trong repo tại [`models/convnext_tiny_khoi_int8.onnx`](models/convnext_tiny_khoi_int8.onnx).
+   - **Phát hiện thực nghiệm quan trọng — Hiệu ứng phần cứng (*Hardware-Aware Optimization*, Colab Xeon vs Apple M2):**
+     - **Trên CPU Intel Xeon ảo của Colab:** Dynamic INT8 **chậm hơn ONNX FP32** (`113.1 ms → 151.1 ms`, tỷ lệ `0.75x`). **Lý do:** Xeon đời cũ trên Colab chỉ có AVX2 (thiếu tập lệnh tăng tốc INT8 `AVX-512 VNNI`), trong khi các tầng đầu `ConvNeXt` có feature map lớn (`56×56`, `28×28`) nên chi phí ép kiểu động `DynamicQuantizeLinear` qua 36 lớp `MatMul` lớn hơn lợi ích nhân INT8.
+     - **Trên CPU Apple M2 (ARM64):** Dynamic INT8 **nhanh vượt trội** — tụt từ **`39.97 ms` (FP32) xuống chỉ còn `23.81 ms/ảnh` (`42.0 FPS`, nhanh hơn 1.68x)**! Cộng cả decode + resize ảnh (`1.28 ms`) tổng End-to-End chỉ **`~25.1 ms`**. **Lý do:** Kiến trúc Apple Silicon (ARMv8.2+) tích hợp sẵn tập lệnh nhân ma trận INT8 gốc (`DotProd / i8mm`) cùng băng thông bộ nhớ hợp nhất lớn, nên vừa khai thác triệt để phép nhân INT8 vừa tiết kiệm **3.29x băng thông nạp trọng số**.
+     - **Trên Apple M2 CoreML (`CoreMLExecutionProvider`):** Chậm hơn CPU thuần (`99.16 ms`) do đồ thị `ConvNeXt-Tiny` có các toán tử như `LayerNorm` không được CoreML hỗ trợ liền mạch nên bị cắt thành **60 phân mảnh nhỏ** (`213/290 nodes`) phải copy dữ liệu qua lại giữa CoreML và CPU.
+   - **Static Quantization (`--mode static`, QDQ + `quant_pre_process` + Calibration 150 ảnh rải đều 38 lớp):** Hỗ trợ tính cố định `scale/zero_point` trước khi deploy để loại bỏ hoàn toàn bước `DynamicQuantizeLinear` khi chạy trên các CPU server hỗ trợ INT8.
 3. **Backend FastAPI Plug & Play ([`backend/service.py`](backend/service.py)):**
    - Nâng cấp từ hardcode `SimplePlantCNN` sang **Model Factory** hỗ trợ 10 kiến trúc `.pth` (`simple_cnn`, `convnext_tiny`, `convnext_small`, `efficientnet_b0`, `efficientnet_v2_s`, `resnet18`, `resnet50`, `mobilenet_v2`, `mobilenet_v3_large`, `swin_t`) **VÀ** tự động chạy trực tiếp mọi file **`.onnx` (FP32 / INT8)** chỉ bằng biến môi trường `MODEL_PATH`.
 4. **Ứng dụng Rust vào 2 điểm nút cổ chai thực tế ([`backend/rust/`](backend/rust/)):**
@@ -146,18 +148,31 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
 
 #### Bảng tổng hợp thí nghiệm
 
-| ID | Mô hình / Cấu hình | Kỹ thuật chính | Train Acc | Val Acc | **Val Macro-F1** | Kích thước | Latency (1 ảnh) | Trạng thái / Ghi chú |
+| ID | Mô hình / Cấu hình | Kỹ thuật chính | Val Acc | **Val Macro-F1** | **Test (33 ảnh)** | Kích thước | Latency 1 ảnh (Colab / M2) | Trạng thái / Ghi chú |
 |---|---|---|---:|---:|---:|---:|---:|---|
-| **EXP-01** | `SimplePlantCNN` (Baseline 1) | 4 khối Conv+BN+ReLU+MaxPool, train từ đầu | — | — | *(baseline)* | `1.6 MB` | — | Đã có checkpoint ([`models/baseline1_simple_cnn.pth`](models/baseline1_simple_cnn.pth)) |
-| **EXP-02** | `ConvNeXt-Tiny` (Phase 1) | Transfer Learning, đóng băng backbone, 2 epochs | 97.47% | 98.32% | **98.30%** | `106.24 MB` | — | Hoàn tất trên Colab T4 |
-| **EXP-03 ⭐** | **`ConvNeXt-Tiny` (Phase 2)** | **Full Fine-tuning (8 epochs), Diff LR, Label Smoothing, AMP** | **99.94%** | **99.95%** | **99.95%** | `106.24 MB` | **`0.26 ms`** (GPU T4 · 3,815 FPS) / `173.0 ms` (CPU Colab) | **Model chủ lực (Best)** |
-| **EXP-04 ⭐** | **`ConvNeXt-Tiny` (ONNX FP32)** | Export ONNX `opset 17`, parity `1.07e-06` | — | **99.95%\*** | **99.95%\*** | `106.3 MB` | **`118.9 ms`** CPU Colab (**1.46x** vs PyTorch) | **Tối ưu tốc độ Serving CPU** |
-| **EXP-05** | `ConvNeXt-Tiny` (ONNX Dynamic INT8) | `QUInt8` trên `MatMul`/`Gemm`, Cosine Sim `0.9992` | — | `100.00%`† | `100.00%`† | **`32.3 MB`** (**−3.29x**) | `151.1 ms` CPU Colab (`0.75x` vs FP32) | **Tối ưu dung lượng (−70%)**, đánh đổi latency trên CPU không có VNNI |
-| **EXP-06** | `ConvNeXt-Tiny` (ONNX Static INT8) | `QDQ` + `quant_pre_process` + Calibration 150 ảnh | — | *(chạy `--mode static`)* | *(chạy `--mode static`)* | *(~30 MB)* | *(đo trên Mac/VNNI)* | Sẵn sàng trong `scripts/quantize_onnx.py` |
-| **EXP-07** | Rust Serving (`axum` + `ort`) | Native image decode + ONNX Runtime (không GIL) | — | *(tương đương ONNX)* | *(tương đương ONNX)* | Binary + ONNX | *(đo sau khi cài Rust)* | Sẵn sàng build (`backend/rust/`) |
+| **EXP-01** | `SimplePlantCNN` (Baseline 1) | 4 khối Conv+BN+ReLU+MaxPool, train từ đầu | — | *(baseline)* | — | `1.6 MB` | — | Đã có checkpoint ([`models/baseline1_simple_cnn.pth`](models/baseline1_simple_cnn.pth)) |
+| **EXP-02** | `ConvNeXt-Tiny` (Phase 1) | Transfer Learning, đóng băng backbone, 2 epochs | 98.32% | **98.30%** | — | `106.24 MB` | — | Warmup head trên Colab T4 |
+| **EXP-03 ⭐** | **`ConvNeXt-Tiny` (Phase 2)** | **Full Fine-tuning (8 epochs), Diff LR, Label Smoothing, AMP** | **99.95%** | **99.95%** | **33/33 (100%)\*** | `106.24 MB` | `0.26 ms` (T4 batch 64) / `173.0 ms` (Colab CPU) | **Model chủ lực (Best Accuracy)** |
+| **EXP-04** | `ConvNeXt-Tiny` (ONNX FP32) | Export ONNX `opset 17`, parity `1.07e-06` | **99.95%\*** | **99.95%\*** | **33/33 (100%)** (`avg conf 90.74%`) | `106.3 MB` | `118.9 ms` (Colab CPU · 1.46x) / **`39.97 ms`** (M2 CPU) | Nhanh nhất trên CPU Intel cũ không có VNNI |
+| **EXP-05 ⭐** | **`ConvNeXt-Tiny` (ONNX INT8)** | Dynamic `QUInt8` (`MatMul`/`Gemm`), Cosine Sim `0.9992` | `100.00%`† | `100.00%`† | **33/33 (100%)** (`avg conf 90.79%`) | **`32.3 MB`** (**−3.29x**) | `151.1 ms` (Colab Xeon) / **`23.81 ms`** (**M2 CPU · 42 FPS**) | **Tối ưu nhất cho Deploy & Apple Silicon** ([`models/convnext_tiny_khoi_int8.onnx`](models/convnext_tiny_khoi_int8.onnx)) |
+| **EXP-06** | `ConvNeXt-Tiny` (ONNX Static INT8) | `QDQ` + `quant_pre_process` + Calibration 150 ảnh | *(sẵn sàng)* | *(sẵn sàng)* | *(chạy `--mode static`)* | *(~30 MB)* | *(tối ưu CPU VNNI)* | Tích hợp sẵn trong `scripts/quantize_onnx.py` |
+| **EXP-07** | Rust Serving (`axum` + `ort`) | Native image decode + ONNX Runtime (không GIL) | *(như ONNX)* | *(như ONNX)* | *(như ONNX)* | Binary + ONNX | *(đo sau khi cài Rust)* | Sẵn sàng build (`backend/rust/`) |
 
 *\*Output ONNX FP32 khớp PyTorch với sai lệch tuyệt đối lớn nhất `1.07e-06`.*
-*†Đo nhanh trên 1.600 ảnh đầu của `valid_loader` (`shuffle=False`); `scripts/quantize_onnx.py` đã nâng cấp lấy mẫu rải đều 38 lớp (`--max-samples`) cho các lần đo tiếp theo.*
+*†Đo trên 1.600 ảnh valid đầu (`shuffle=False`); trên tập kiểm thử độc lập `data/test`, cả ONNX FP32 và ONNX INT8 đều đạt **33/33 (100.00%)** với độ tin cậy trung bình ~90.7% (được hiệu chuẩn mượt nhờ `LabelSmoothing = 0.1`).*
+
+#### So sánh hiệu năng Serving giữa các phần cứng (1 ảnh lẻ `224×224`, 30 lần chạy sau warmup)
+
+| Phần cứng & Runtime | Định dạng | Dung lượng | Avg Latency | p50 | p95 | Throughput | Nhận xét & Lý do kỹ thuật |
+|---|---|---:|---:|---:|---:|---:|---|
+| **Apple M2 CPU (ARM64)** — ORT | **ONNX Dynamic INT8** | **`32.3 MB`** | **`23.81 ms`** | `23.74 ms` | `24.19 ms` | **`42.0 FPS`** | **Nhanh nhất (gấp 1.68x FP32, 7.3x PyTorch Colab)** nhờ tập lệnh INT8 gốc `ARM DotProd/i8mm` + giảm 3.29x băng thông RAM |
+| **Apple M2 CPU (ARM64)** — ORT | ONNX FP32 | `106.3 MB` | `39.97 ms` | `39.28 ms` | `42.71 ms` | `25.0 FPS` | Nhanh gấp ~3x so với CPU ảo của Colab |
+| **Apple M2 CoreML/ANE** — ORT | ONNX FP32 | `106.3 MB` | `99.16 ms` | `93.26 ms` | `121.53 ms` | `10.1 FPS` | Chậm hơn CPU thuần vì đồ thị `ConvNeXt` bị cắt thành **60 phân mảnh nhỏ** (`213/290` nodes) qua lại CoreML ↔ CPU |
+| **Colab 2-vCPU (Intel Xeon cũ)** — ORT | ONNX FP32 | `106.3 MB` | `118.9 ms` | — | — | `8.4 FPS` | Nhanh hơn PyTorch CPU (`1.46x`), tốt nhất trên CPU không có VNNI |
+| **Colab 2-vCPU (Intel Xeon cũ)** — ORT | ONNX Dynamic INT8 | `32.3 MB` | `151.1 ms` | — | — | `6.6 FPS` | Chậm hơn FP32 (`0.75x`) do Xeon cũ thiếu `AVX-512 VNNI` và phải gánh overhead `DynamicQuantizeLinear` |
+| **Colab 2-vCPU (Intel Xeon cũ)** — PyTorch | PyTorch FP32 | `106.24 MB` | `173.0 ms` | — | — | `5.8 FPS` | Baseline CPU trước khi tối ưu ONNX |
+
+*(Chi phí giải mã JPEG + resize `224×224` + chuẩn hóa ImageNet trên Apple M2 chỉ tốn **`1.28 ms`** → tổng thời gian End-to-End cho 1 request ảnh với ONNX INT8 trên Apple M2 là **`~25.1 ms`**.)*
 
 #### Kết quả chính thức từ `eval_engine.py` (EXP-03 trên toàn bộ 17.572 ảnh Validation, GPU Tesla T4)
 - **Macro F1-Score:** **`99.95%`** | **Accuracy:** **`99.95%`** | **Weighted F1:** **`99.95%`**
@@ -186,8 +201,8 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
 ## 5. Kết luận & Hướng phát triển
 
 ### 5.1. Kết luận
-- Dự án đã xây dựng trọn vẹn chuỗi giá trị Machine Learning từ **EDA → Data Pipeline chống rò rỉ → Huấn luyện Transfer Learning 2 giai đoạn (`ConvNeXt-Tiny` đạt 99.95% Val Macro-F1) → Xuất & nén ONNX (FP32/INT8) → Serving API Plug & Play (FastAPI & Rust) → Web Demo (Streamlit)**.
-- Thực nghiệm cho thấy rõ sự đánh đổi phần cứng (*Hardware-Aware Trade-off*): **ONNX FP32** đạt tốc độ CPU tối ưu nhất (`118.9 ms`, nhanh hơn PyTorch `1.46x`), còn **ONNX Dynamic INT8** cắt giảm **3.29x dung lượng** (`32.3 MB`) nhưng tăng latency trên CPU không có VNNI — là căn cứ kỹ thuật trực tiếp để chọn định dạng phù hợp theo môi trường deploy và triển khai thêm chế độ **Static INT8**.
+- Dự án đã xây dựng trọn vẹn chuỗi giá trị Machine Learning từ **EDA → Data Pipeline chống rò rỉ → Huấn luyện Transfer Learning 2 giai đoạn (`ConvNeXt-Tiny` đạt `99.95%` Val Macro-F1 và `33/33 = 100%` trên `data/test`) → Xuất & nén ONNX (FP32/INT8) → Serving API Plug & Play (FastAPI & Rust) → Web Demo (Streamlit)**.
+- Thực nghiệm cho thấy rõ hiệu ứng **tối ưu theo phần cứng (*Hardware-Aware Optimization*)**: cùng file **ONNX Dynamic INT8 (`32.3 MB`, nhẹ hơn `3.29x`)**, trên CPU Xeon cũ của Colab chậm hơn FP32 (`151.1 ms` vs `118.9 ms`) do thiếu `AVX-512 VNNI`, nhưng trên **Apple M2 CPU (ARM64 DotProd/i8mm)** lại bứt phá xuống còn **`23.81 ms/ảnh` (`42.0 FPS`, nhanh hơn FP32 `1.68x` và nhanh hơn PyTorch Colab `7.3x`)** mà vẫn giữ **100% độ chính xác trên tập test**.
 
 ### 5.2. Hạn chế & Hướng cải tiến tiếp theo
 1. **Kiểm chứng ngoài phòng lab (Domain Shift):** Bộ PlantVillage có nền xám đồng nhất; cần bổ sung ảnh lá chụp ngoài đồng ruộng (như PlantDoc) kèm `RandomErasing` / `Mixup` nếu đưa ra ứng dụng nông nghiệp thực địa.

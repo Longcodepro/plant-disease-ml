@@ -50,7 +50,7 @@ from onnxruntime.quantization.shape_inference import quant_pre_process
 def _preprocess_for_quant(input_path: Path, prep_path: Path) -> Path:
     """Chạy ONNX shape inference & tối ưu đồ thị trước khi lượng tử hóa (khuyến nghị của ORT)."""
     try:
-        quant_pre_process(str(input_path), str(prep_path), skip_symbolic_shape=False)
+        quant_pre_process(str(input_path), str(prep_path), skip_symbolic_shape=True)
         return prep_path
     except Exception as exc:
         print(f"⚠️  quant_pre_process bỏ qua ({exc}); tiếp tục với đồ thị gốc.")
