@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
 Script tự động tải và giải nén Dataset cho dự án Plant Disease ML.
-- Nguồn: Google Drive (hoặc file zip có sẵn trên máy)
-- Đích: Tự động phân phối chuẩn vào thư mục data/ (data/train, data/valid, data/test)
+- Hỗ trợ định dạng: .zip, .tar.gz, .tgz, .tar
+- Nguồn: Google Drive (hoặc file nén có sẵn trên máy)
+- Đích: Tự động giải nén và phân phối chuẩn vào thư mục data/ (data/train, data/valid, data/test)
 """
 
 import os
 import sys
 import shutil
 import zipfile
+import tarfile
 import argparse
 from pathlib import Path
 
@@ -19,24 +21,38 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
 
 
-def extract_and_organize(zip_path: Path, target_data_dir: Path):
+def extract_archive(archive_path: Path, extract_to: Path):
+    """Giải nén đa định dạng (.zip, .tar.gz, .tgz, .tar)."""
+    name = archive_path.name.lower()
+    if name.endswith((".tar.gz", ".tgz")):
+        print(f"📦 Đang giải nén file tar.gz: {archive_path.name}...")
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(extract_to)
+    elif name.endswith(".tar"):
+        print(f"📦 Đang giải nén file tar: {archive_path.name}...")
+        with tarfile.open(archive_path, "r:") as tar:
+            tar.extractall(extract_to)
+    elif name.endswith(".zip"):
+        print(f"📦 Đang giải nén file zip: {archive_path.name}...")
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
+            zip_ref.extractall(extract_to)
+    else:
+        raise ValueError(f"Định dạng file không được hỗ trợ: {archive_path.name}")
+
+
+def extract_and_organize(archive_path: Path, target_data_dir: Path):
     """
     Giải nén an toàn và tự động tổ chức chuẩn vào target_data_dir (data/):
     Hỗ trợ linh hoạt:
-    - Nếu file zip tải từ Drive chứa thẳng train/, valid/, test/
-    - Hoặc chứa folder lồng (ví dụ data/train, data/valid hoặc bất kỳ tên thư mục cha nào)
+    - Nếu file nén chứa trực tiếp train/, valid/, test/ (hoặc data/train, data/valid, v.v.)
     """
-    print(f"📦 Đang giải nén tệp: {zip_path.name}...")
     target_data_dir.mkdir(parents=True, exist_ok=True)
     temp_extract_dir = target_data_dir / "_temp_extract"
     if temp_extract_dir.exists():
         shutil.rmtree(temp_extract_dir)
     temp_extract_dir.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(zip_path, "r") as zip_ref:
-        total_files = len(zip_ref.infolist())
-        print(f"🔍 Tổng số tệp trong file nén: {total_files}")
-        zip_ref.extractall(temp_extract_dir)
+    extract_archive(archive_path, temp_extract_dir)
 
     print("🚚 Đang quét và phân phối các tập dữ liệu vào đúng vị trí data/...")
 
@@ -123,36 +139,38 @@ def main():
         "--file", "-f",
         type=str,
         default=None,
-        help="Đường dẫn đến file zip có sẵn trên máy"
+        help="Đường dẫn đến file nén có sẵn trên máy (.zip, .tar.gz)"
     )
     parser.add_argument(
         "--url", "-u",
         type=str,
         default=None,
-        help="Đường link Google Drive chia sẻ file zip"
+        help="Đường link Google Drive chia sẻ file nén"
     )
     parser.add_argument(
-        "--keep-zip",
+        "--keep-archive",
         action="store_true",
-        help="Giữ lại file zip sau khi giải nén (mặc định sẽ xóa để tiết kiệm dung lượng)"
+        help="Giữ lại file nén sau khi giải nén (mặc định sẽ xóa để tiết kiệm dung lượng)"
     )
 
     args = parser.parse_args()
 
-    # Tìm file zip có sẵn
-    local_zip = None
+    # Tìm file nén có sẵn
+    local_archive = None
     if args.file and Path(args.file).exists():
-        local_zip = Path(args.file)
+        local_archive = Path(args.file)
     else:
-        # Tự động phát hiện bất kỳ file zip nào ở thư mục gốc (data.zip, dataset.zip, archive.zip,...)
-        for f in ROOT_DIR.glob("*.zip"):
-            if f.is_file() and f.name != "dataset.zip":
-                print(f"🔍 Tự động phát hiện file nén sẵn có: {f.name}")
-                local_zip = f
-                break
+        # Tự động tìm các file nén trong thư mục gốc
+        valid_extensions = (".tar.gz", ".tgz", ".zip", ".tar")
+        for f in ROOT_DIR.iterdir():
+            if f.is_file() and any(f.name.lower().endswith(ext) for ext in valid_extensions):
+                if f.name not in ("dataset.zip", "dataset.tar.gz"):
+                    print(f"🔍 Tự động phát hiện file nén sẵn có: {f.name}")
+                    local_archive = f
+                    break
 
-    if local_zip:
-        extract_and_organize(local_zip, DATA_DIR)
+    if local_archive:
+        extract_and_organize(local_archive, DATA_DIR)
         return
 
     # Tải từ Google Drive
@@ -161,21 +179,21 @@ def main():
         print("❌ Lỗi: Bạn chưa cung cấp link Google Drive!")
         print("👉 Cách dùng:")
         print("   python scripts/download_data.py --url 'LINK_GOOGLE_DRIVE'")
-        print("   hoặc đặt file .zip vào thư mục gốc rồi chạy: python scripts/download_data.py")
+        print("   hoặc đặt file nén (.tar.gz / .zip) vào thư mục gốc rồi chạy: python scripts/download_data.py")
         sys.exit(1)
 
-    dest_zip = ROOT_DIR / "dataset.zip"
-    download_from_gdrive(source_url, dest_zip)
+    dest_archive = ROOT_DIR / "dataset_downloaded"
+    download_from_gdrive(source_url, dest_archive)
 
-    if not dest_zip.exists() or dest_zip.stat().st_size == 0:
+    if not dest_archive.exists() or dest_archive.stat().st_size == 0:
         print("❌ Lỗi: Quá trình tải file từ Google Drive thất bại.")
         sys.exit(1)
 
-    extract_and_organize(dest_zip, DATA_DIR)
+    extract_and_organize(dest_archive, DATA_DIR)
 
-    if not args.keep_zip and dest_zip.exists():
-        print("🧹 Dọn dẹp: Đang xóa file zip tạm để giải phóng dung lượng...")
-        dest_zip.unlink()
+    if not args.keep_archive and dest_archive.exists():
+        print("🧹 Dọn dẹp: Đang xóa file nén tạm để giải phóng dung lượng...")
+        dest_archive.unlink()
 
     print("✨ Sẵn sàng huấn luyện mô hình!")
 
