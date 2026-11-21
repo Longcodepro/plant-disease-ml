@@ -1,5 +1,7 @@
 .git/
-data/
+data/*
+!data/test/
+!data/test/*
 hoc_tap_ml/
 notebooks/
 backend/rust/
