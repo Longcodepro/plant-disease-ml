@@ -1,0 +1,25 @@
+# Dữ liệu ảnh và nén nặng (Không đưa lên Git)
+data/
+archive.zip
+dataset.zip
+*.zip
+*.tar.gz
+*.tar
+
+# Python cache & virtualenv
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+
+# Jupyter & Checkpoints
+.ipynb_checkpoints/
+jupyter.log
+
+# Mac & IDE
+.DS_Store
+.vscode/
+.idea/
