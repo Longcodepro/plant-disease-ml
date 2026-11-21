@@ -1,0 +1,67 @@
+{
+  "status": "completed",
+  "model_name": "efficientnet_b0_robust",
+  "author": "Tri",
+  "preprocessing": "MobileLeafPreprocessor(LAB-CLAHE + Adaptive Unsharp Mask)",
+  "device": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "overall_peak_vram_mb": 1482.2,
+  "total_train_time_sec": 2020.48,
+  "best_epoch": 3,
+  "final_metrics_with_preproc": {
+    "accuracy": 0.9991,
+    "macro_f1": 0.9991,
+    "weighted_f1": 0.9991,
+    "macro_precision": 0.9991,
+    "macro_recall": 0.9991,
+    "latency_per_image_ms": 1.0,
+    "throughput_fps": 999.0,
+    "total_parameters": 4056226,
+    "model_size_mb": 15.47,
+    "val_loss": 0.3858,
+    "checkpoint_file_size_mb": 15.77
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 0.4699,
+      "train_acc": 0.9781,
+      "val_loss": 0.3895,
+      "val_acc": 0.9989,
+      "val_macro_f1": 0.9989,
+      "val_weighted_f1": 0.9989,
+      "train_sec": 624.91,
+      "epoch_total_sec": 776.33,
+      "train_throughput_img_s": 112.5,
+      "peak_vram_mb": 1482.2,
+      "lr": 5e-05
+    },
+    {
+      "epoch": 2,
+      "train_loss": 0.4327,
+      "train_acc": 0.9885,
+      "val_loss": 0.3869,
+      "val_acc": 0.9986,
+      "val_macro_f1": 0.9985,
+      "val_weighted_f1": 0.9986,
+      "train_sec": 665.27,
+      "epoch_total_sec": 759.04,
+      "train_throughput_img_s": 105.7,
+      "peak_vram_mb": 1480.1,
+      "lr": 3.78e-05
+    },
+    {
+      "epoch": 3,
+      "train_loss": 0.4222,
+      "train_acc": 0.9919,
+      "val_loss": 0.3858,
+      "val_acc": 0.9991,
+      "val_macro_f1": 0.9991,
+      "val_weighted_f1": 0.9991,
+      "train_sec": 443.15,
+      "epoch_total_sec": 484.83,
+      "train_throughput_img_s": 158.6,
+      "peak_vram_mb": 1480.1,
+      "lr": 1.33e-05
+    }
+  ]
+}

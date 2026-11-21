@@ -1,0 +1,266 @@
+{
+  "unseen_valid_count": 6108,
+  "sibling_valid_count": 11464,
+  "sibling_leakage_pct": 65.24,
+  "v2_unseen_test_33": "33/33 (100.00%)",
+  "v1_raw": {
+    "clean": {
+      "accuracy": 0.999,
+      "macro_f1": 0.9952,
+      "errors": 6,
+      "total": 6108,
+      "elapsed_sec": 24.35,
+      "delta_vs_clean": 0.0,
+      "delta_f1_vs_clean": 0.0
+    },
+    "blur_mild": {
+      "accuracy": 0.9546,
+      "macro_f1": 0.8398,
+      "errors": 277,
+      "total": 6108,
+      "elapsed_sec": 37.68,
+      "delta_vs_clean": -0.0444,
+      "delta_f1_vs_clean": -0.1554
+    },
+    "blur_heavy": {
+      "accuracy": 0.5509,
+      "macro_f1": 0.5046,
+      "errors": 2743,
+      "total": 6108,
+      "elapsed_sec": 40.33,
+      "delta_vs_clean": -0.4481,
+      "delta_f1_vs_clean": -0.4906
+    },
+    "harsh_lighting": {
+      "accuracy": 0.9843,
+      "macro_f1": 0.9373,
+      "errors": 96,
+      "total": 6108,
+      "elapsed_sec": 28.88,
+      "delta_vs_clean": -0.0147,
+      "delta_f1_vs_clean": -0.0579
+    },
+    "sensor_noise": {
+      "accuracy": 0.5421,
+      "macro_f1": 0.4818,
+      "errors": 2797,
+      "total": 6108,
+      "elapsed_sec": 34.33,
+      "delta_vs_clean": -0.4569,
+      "delta_f1_vs_clean": -0.5134
+    },
+    "occlusion_22pct": {
+      "accuracy": 0.982,
+      "macro_f1": 0.8844,
+      "errors": 110,
+      "total": 6108,
+      "elapsed_sec": 23.32,
+      "delta_vs_clean": -0.017,
+      "delta_f1_vs_clean": -0.1108
+    },
+    "combined_mobile": {
+      "accuracy": 0.3217,
+      "macro_f1": 0.2727,
+      "errors": 4143,
+      "total": 6108,
+      "elapsed_sec": 41.17,
+      "delta_vs_clean": -0.6773,
+      "delta_f1_vs_clean": -0.7225
+    }
+  },
+  "v1_with_preproc": {
+    "clean": {
+      "accuracy": 0.9759,
+      "macro_f1": 0.8752,
+      "errors": 147,
+      "total": 6108,
+      "elapsed_sec": 28.24,
+      "delta_vs_clean": 0.0,
+      "delta_f1_vs_clean": 0.0
+    },
+    "blur_mild": {
+      "accuracy": 0.8859,
+      "macro_f1": 0.8193,
+      "errors": 697,
+      "total": 6108,
+      "elapsed_sec": 37.19,
+      "delta_vs_clean": -0.09,
+      "delta_f1_vs_clean": -0.0559
+    },
+    "blur_heavy": {
+      "accuracy": 0.5146,
+      "macro_f1": 0.5036,
+      "errors": 2965,
+      "total": 6108,
+      "elapsed_sec": 59.57,
+      "delta_vs_clean": -0.4613,
+      "delta_f1_vs_clean": -0.3716
+    },
+    "harsh_lighting": {
+      "accuracy": 0.9504,
+      "macro_f1": 0.8543,
+      "errors": 303,
+      "total": 6108,
+      "elapsed_sec": 40.59,
+      "delta_vs_clean": -0.0255,
+      "delta_f1_vs_clean": -0.0209
+    },
+    "sensor_noise": {
+      "accuracy": 0.1302,
+      "macro_f1": 0.1001,
+      "errors": 5313,
+      "total": 6108,
+      "elapsed_sec": 52.24,
+      "delta_vs_clean": -0.8457,
+      "delta_f1_vs_clean": -0.7751
+    },
+    "occlusion_22pct": {
+      "accuracy": 0.9073,
+      "macro_f1": 0.8199,
+      "errors": 566,
+      "total": 6108,
+      "elapsed_sec": 35.67,
+      "delta_vs_clean": -0.0686,
+      "delta_f1_vs_clean": -0.0553
+    },
+    "combined_mobile": {
+      "accuracy": 0.0553,
+      "macro_f1": 0.0218,
+      "errors": 5770,
+      "total": 6108,
+      "elapsed_sec": 59.42,
+      "delta_vs_clean": -0.9206,
+      "delta_f1_vs_clean": -0.8534
+    }
+  },
+  "v2_robust_raw": {
+    "clean": {
+      "accuracy": 0.9962,
+      "macro_f1": 0.9925,
+      "errors": 23,
+      "total": 6108,
+      "elapsed_sec": 24.58,
+      "delta_vs_clean": 0.0,
+      "delta_f1_vs_clean": 0.0
+    },
+    "blur_mild": {
+      "accuracy": 0.9885,
+      "macro_f1": 0.9897,
+      "errors": 70,
+      "total": 6108,
+      "elapsed_sec": 40.17,
+      "delta_vs_clean": -0.0077,
+      "delta_f1_vs_clean": -0.0028
+    },
+    "blur_heavy": {
+      "accuracy": 0.9594,
+      "macro_f1": 0.8759,
+      "errors": 248,
+      "total": 6108,
+      "elapsed_sec": 41.94,
+      "delta_vs_clean": -0.0368,
+      "delta_f1_vs_clean": -0.1166
+    },
+    "harsh_lighting": {
+      "accuracy": 0.9768,
+      "macro_f1": 0.9393,
+      "errors": 142,
+      "total": 6108,
+      "elapsed_sec": 26.98,
+      "delta_vs_clean": -0.0194,
+      "delta_f1_vs_clean": -0.0532
+    },
+    "sensor_noise": {
+      "accuracy": 0.9859,
+      "macro_f1": 0.8863,
+      "errors": 86,
+      "total": 6108,
+      "elapsed_sec": 39.89,
+      "delta_vs_clean": -0.0103,
+      "delta_f1_vs_clean": -0.1062
+    },
+    "occlusion_22pct": {
+      "accuracy": 0.98,
+      "macro_f1": 0.8619,
+      "errors": 122,
+      "total": 6108,
+      "elapsed_sec": 25.2,
+      "delta_vs_clean": -0.0162,
+      "delta_f1_vs_clean": -0.1306
+    },
+    "combined_mobile": {
+      "accuracy": 0.8161,
+      "macro_f1": 0.6731,
+      "errors": 1123,
+      "total": 6108,
+      "elapsed_sec": 56.0,
+      "delta_vs_clean": -0.1801,
+      "delta_f1_vs_clean": -0.3194
+    }
+  },
+  "v2_robust_with_preproc": {
+    "clean": {
+      "accuracy": 0.9985,
+      "macro_f1": 0.9916,
+      "errors": 9,
+      "total": 6108,
+      "elapsed_sec": 34.28,
+      "delta_vs_clean": 0.0,
+      "delta_f1_vs_clean": 0.0
+    },
+    "blur_mild": {
+      "accuracy": 0.9967,
+      "macro_f1": 0.9648,
+      "errors": 20,
+      "total": 6108,
+      "elapsed_sec": 51.39,
+      "delta_vs_clean": -0.0018,
+      "delta_f1_vs_clean": -0.0268
+    },
+    "blur_heavy": {
+      "accuracy": 0.9935,
+      "macro_f1": 0.9313,
+      "errors": 40,
+      "total": 6108,
+      "elapsed_sec": 54.75,
+      "delta_vs_clean": -0.005,
+      "delta_f1_vs_clean": -0.0603
+    },
+    "harsh_lighting": {
+      "accuracy": 0.9959,
+      "macro_f1": 0.9528,
+      "errors": 25,
+      "total": 6108,
+      "elapsed_sec": 39.37,
+      "delta_vs_clean": -0.0026,
+      "delta_f1_vs_clean": -0.0388
+    },
+    "sensor_noise": {
+      "accuracy": 0.9953,
+      "macro_f1": 0.9277,
+      "errors": 29,
+      "total": 6108,
+      "elapsed_sec": 44.54,
+      "delta_vs_clean": -0.0032,
+      "delta_f1_vs_clean": -0.0639
+    },
+    "occlusion_22pct": {
+      "accuracy": 0.9908,
+      "macro_f1": 0.8896,
+      "errors": 56,
+      "total": 6108,
+      "elapsed_sec": 35.46,
+      "delta_vs_clean": -0.0077,
+      "delta_f1_vs_clean": -0.102
+    },
+    "combined_mobile": {
+      "accuracy": 0.9735,
+      "macro_f1": 0.8475,
+      "errors": 162,
+      "total": 6108,
+      "elapsed_sec": 66.04,
+      "delta_vs_clean": -0.025,
+      "delta_f1_vs_clean": -0.1441
+    }
+  }
+}
