@@ -1,6 +1,6 @@
 """
 FastAPI Prediction Service
-Tham khảo: Designing Machine Learning Systems (Chip Huyen) - Chương 7 (Model Serving)
+Tham khảo: Designing Machine Learning Systems (Chip Huyen) - Chương 7 (Serving) & Chương 8 (Monitoring)
 """
 
 import os
@@ -15,7 +15,13 @@ from starlette.concurrency import run_in_threadpool
 # Thêm thư mục gốc vào PYTHONPATH để nạp modules
 sys.path.append(str(Path(__file__).parent.parent))
 
-from backend.schemas import BatchPredictionResponse, HealthResponse, PredictionResponse
+from backend.schemas import (
+    BatchPredictionResponse,
+    ExplainResponse,
+    HealthResponse,
+    MetricsResponse,
+    PredictionResponse,
+)
 from backend.service import ModelService
 
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(10 * 1024 * 1024)))  # 10 MB / ảnh
@@ -23,8 +29,8 @@ MAX_BATCH_SIZE = int(os.getenv("MAX_BATCH_SIZE", "32"))
 
 app = FastAPI(
     title="Plant Disease Classification API",
-    description="REST API dự đoán bệnh trên lá cây sử dụng Deep Learning (PlantVillage Dataset)",
-    version="1.1.0",
+    description="REST API dự đoán bệnh trên lá cây (ONNX INT8 + XAI Heatmap + Live Monitoring)",
+    version="1.2.0",
 )
 
 # CORS Middleware hỗ trợ kết nối từ Web Frontend
@@ -79,12 +85,17 @@ def health_check():
     }
 
 
+@app.get("/metrics", response_model=MetricsResponse)
+def metrics():
+    """Endpoint giám sát trực tuyến (Latency p50/p95, Cache Hit Rate, Uncertain/Drift Rate)."""
+    return service.get_metrics()
+
+
 @app.post("/predict", response_model=PredictionResponse)
 async def predict(file: UploadFile = File(...)):
-    """Endpoint nhận 1 ảnh lá cây (multipart/form-data) và trả về kết quả dự đoán kèm độ trễ."""
+    """Endpoint nhận 1 ảnh lá cây và trả về dự đoán (có SHA-256 LRU cache & ngưỡng cảnh báo)."""
     image_bytes = await _read_validated_image(file)
     try:
-        # Chạy CPU-bound inference trong threadpool để không block async event loop
         return await run_in_threadpool(service.predict, image_bytes)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -119,3 +130,15 @@ async def predict_batch(files: List[UploadFile] = File(...)):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Lỗi suy luận batch: {str(e)}")
+
+
+@app.post("/explain", response_model=ExplainResponse)
+async def explain(file: UploadFile = File(...)):
+    """Endpoint XAI trả về ảnh heatmap (Base64 PNG) khoanh vùng vết bệnh mô hình tập trung."""
+    image_bytes = await _read_validated_image(file)
+    try:
+        return await run_in_threadpool(service.explain, image_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi sinh giải thích XAI: {str(e)}")

@@ -1,22 +1,28 @@
 """
 Model Inference Service
 Tuân thủ nguyên tắc:
-- Designing Machine Learning Systems (Chip Huyen) - Chương 7 (Model Serving & Latency)
+- Designing Machine Learning Systems (Chip Huyen) - Chương 7 (Serving) & Chương 8 (Monitoring)
 - Hands-On Machine Learning (Aurélien Géron) - Chương 13, 14
 
-Tối ưu triển khai:
-- Lazy-import PyTorch/Torchvision: khi chạy model `.onnx` không cần cài hay nạp PyTorch (~2 GB).
-- Warmup lúc khởi động để loại bỏ độ trễ cold-start ở request đầu tiên.
-- Hỗ trợ suy luận theo lô (batched inference) tận dụng `dynamic_axes` của ONNX.
-- Cảnh báo độ tin cậy thấp (`is_uncertain`) khi ảnh mờ hoặc ngoài phân phối 38 lớp.
+Tính năng nổi bật:
+- Lazy-import PyTorch/Torchvision: chạy `.onnx` không cần cài hay nạp PyTorch (~2 GB).
+- Warmup lúc khởi động để loại bỏ cold-start.
+- SHA-256 In-Memory LRU Cache: ảnh trùng lặp trả về trong <0.5 ms (`cache_hit=True`).
+- Batched Inference (`predict_batch`) tận dụng `dynamic_axes` của ONNX.
+- Explainable AI (`explain`): Batched Occlusion Sensitivity Heatmap thuần ONNX/NumPy/PIL.
+- Online Telemetry (`get_metrics`): theo dõi p50/p95 latency, cache hit rate, tỷ lệ uncertain (data drift).
 """
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import io
 import json
 import os
+import threading
 import time
+from collections import Counter, OrderedDict, deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -28,6 +34,7 @@ IMAGE_SIZE = 224
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)
 DEFAULT_CONFIDENCE_THRESHOLD = float(os.getenv("CONFIDENCE_THRESHOLD", "0.60"))
+DEFAULT_CACHE_SIZE = int(os.getenv("PREDICT_CACHE_SIZE", "256"))
 
 
 def build_model_architecture(model_name: str, num_classes: int):
@@ -97,12 +104,81 @@ def _softmax_2d(logits: np.ndarray) -> np.ndarray:
     return exps / np.sum(exps, axis=1, keepdims=True)
 
 
+def _jet_colormap(norm_2d: np.ndarray) -> np.ndarray:
+    """Ánh xạ bản đồ [0, 1] -> RGB Jet colormap thuần NumPy (không cần matplotlib/opencv)."""
+    x = np.clip(norm_2d, 0.0, 1.0)
+    r = np.clip(1.5 - np.abs(4.0 * x - 3.0), 0.0, 1.0)
+    g = np.clip(1.5 - np.abs(4.0 * x - 2.0), 0.0, 1.0)
+    b = np.clip(1.5 - np.abs(4.0 * x - 1.0), 0.0, 1.0)
+    return (np.stack([r, g, b], axis=-1) * 255.0).astype(np.uint8)
+
+
+class TelemetryTracker:
+    """Bộ thu thập metrics trực tuyến an toàn luồng (Chip Huyen Ch. 8 - Monitoring)."""
+
+    def __init__(self, window_size: int = 1000):
+        self._lock = threading.Lock()
+        self.started_at = time.time()
+        self.total_requests = 0
+        self.total_images = 0
+        self.cache_hits = 0
+        self.uncertain_count = 0
+        self.latencies_ms: deque[float] = deque(maxlen=window_size)
+        self.class_counts: Counter[str] = Counter()
+
+    def record(
+        self,
+        latency_ms: float,
+        predicted_classes: List[str],
+        uncertain_flags: List[bool],
+        cache_hit: bool = False,
+    ) -> None:
+        with self._lock:
+            self.total_requests += 1
+            self.total_images += len(predicted_classes)
+            if cache_hit:
+                self.cache_hits += 1
+            self.uncertain_count += sum(1 for u in uncertain_flags if u)
+            self.latencies_ms.append(float(latency_ms))
+            self.class_counts.update(predicted_classes)
+
+    def snapshot(self, model_version: str, backend_type: str) -> Dict[str, Any]:
+        with self._lock:
+            lats = list(self.latencies_ms)
+            if lats:
+                arr = np.array(lats, dtype=np.float64)
+                lat_stats = {
+                    "avg": round(float(np.mean(arr)), 2),
+                    "p50": round(float(np.percentile(arr, 50)), 2),
+                    "p95": round(float(np.percentile(arr, 95)), 2),
+                    "min": round(float(np.min(arr)), 2),
+                    "max": round(float(np.max(arr)), 2),
+                }
+            else:
+                lat_stats = {"avg": 0.0, "p50": 0.0, "p95": 0.0, "min": 0.0, "max": 0.0}
+
+            return {
+                "uptime_seconds": round(time.time() - self.started_at, 1),
+                "model_version": model_version,
+                "backend_type": backend_type,
+                "total_requests": self.total_requests,
+                "total_images_predicted": self.total_images,
+                "cache_hits": self.cache_hits,
+                "cache_hit_rate": round(self.cache_hits / self.total_requests, 4) if self.total_requests else 0.0,
+                "uncertain_count": self.uncertain_count,
+                "uncertain_rate": round(self.uncertain_count / self.total_images, 4) if self.total_images else 0.0,
+                "latency_ms": lat_stats,
+                "top_predicted_classes": dict(self.class_counts.most_common(5)),
+            }
+
+
 class ModelService:
     def __init__(
         self,
         model_path: str = "models/convnext_tiny_khoi_int8.onnx",
         mapping_path: str = "models/class_indices.json",
         confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
+        cache_size: int = DEFAULT_CACHE_SIZE,
     ):
         self.model_path = Path(model_path)
         self.mapping_path = Path(mapping_path)
@@ -113,6 +189,11 @@ class ModelService:
         self.onnx_input_name: Optional[str] = None
         self.idx_to_class: Dict[int, str] = {}
         self.model_version = self.model_path.stem
+
+        self._cache_size = max(0, cache_size)
+        self._cache_lock = threading.Lock()
+        self._predict_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
+        self.telemetry = TelemetryTracker()
 
         self.load_metadata()
         self.load_model()
@@ -143,13 +224,11 @@ class ModelService:
             self.onnx_input_name = session.get_inputs()[0].name
             self.model_version = f"{self.model_path.stem} (ONNX)"
 
-            # Warmup 1 lần để request đầu tiên không bị trễ cold-start
             dummy = np.zeros((1, 3, IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
             session.run(None, {self.onnx_input_name: dummy})
             print(f"[OK] Đã tải & warmup mô hình ONNX từ {self.model_path} | providers={session.get_providers()}")
             return
 
-        # Nhánh PyTorch (.pth): chỉ import torch khi thật sự dùng checkpoint PyTorch
         import torch
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -169,18 +248,21 @@ class ModelService:
             self.model(dummy_t)
         print(f"[OK] Đã tải & warmup mô hình '{model_name}' từ {self.model_path} trên thiết bị: {self.device}")
 
-    def _preprocess_bytes(self, image_bytes: bytes) -> np.ndarray:
-        """Decode -> RGB -> Resize 224x224 (Bilinear) -> CHW Float32 chuẩn ImageNet."""
+    def _decode_and_resize(self, image_bytes: bytes) -> Image.Image:
         if not image_bytes:
             raise ValueError("File ảnh rỗng.")
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         except (UnidentifiedImageError, OSError) as exc:
             raise ValueError(f"File không phải ảnh hợp lệ hoặc bị hỏng: {exc}") from exc
+        return image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
 
-        img = image.resize((IMAGE_SIZE, IMAGE_SIZE), Image.BILINEAR)
-        arr = (np.asarray(img, dtype=np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
-        return np.transpose(arr, (2, 0, 1))  # (3, 224, 224)
+    def _pil_to_chw(self, img_224: Image.Image) -> np.ndarray:
+        arr = (np.asarray(img_224, dtype=np.float32) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD
+        return np.transpose(arr, (2, 0, 1))
+
+    def _preprocess_bytes(self, image_bytes: bytes) -> np.ndarray:
+        return self._pil_to_chw(self._decode_and_resize(image_bytes))
 
     def _run_batch_logits(self, batch_chw: np.ndarray) -> Tuple[np.ndarray, float]:
         if self.model is None:
@@ -229,12 +311,64 @@ class ModelService:
         }
 
     def predict(self, image_bytes: bytes) -> Dict[str, Any]:
+        digest = hashlib.sha256(image_bytes).hexdigest() if self._cache_size > 0 else ""
+
+        # 1. Kiểm tra SHA-256 LRU Cache
+        if digest:
+            t_cache = time.perf_counter()
+            with self._cache_lock:
+                cached = self._predict_cache.get(digest)
+                if cached is not None:
+                    self._predict_cache.move_to_end(digest)
+                    hit_ms = round((time.perf_counter() - t_cache) * 1000.0, 2)
+                    # Tính lại ngưỡng uncertain động theo confidence_threshold hiện tại
+                    is_uncertain = cached["confidence"] < self.confidence_threshold
+                    warning = (
+                        f"Độ tin cậy thấp ({cached['confidence'] * 100:.1f}% < {self.confidence_threshold * 100:.0f}%). "
+                        "Ảnh có thể bị mờ, thiếu sáng hoặc không phải lá cây thuộc 38 lớp đã huấn luyện."
+                        if is_uncertain
+                        else None
+                    )
+                    res = {
+                        **cached,
+                        "is_uncertain": is_uncertain,
+                        "warning": warning,
+                        "cache_hit": True,
+                        "inference_time_ms": hit_ms,
+                    }
+                    self.telemetry.record(hit_ms, [res["predicted_class"]], [is_uncertain], cache_hit=True)
+                    return res
+
+        # 2. Chạy suy luận thật
         batch = self._preprocess_bytes(image_bytes)[None, ...]
         logits, inference_time_ms = self._run_batch_logits(batch)
         probs = _softmax_2d(logits)[0]
-        result = self._format_prediction(probs)
-        result["inference_time_ms"] = round(inference_time_ms, 2)
-        result["model_version"] = self.model_version
+        base = self._format_prediction(probs)
+        result = {
+            **base,
+            "cache_hit": False,
+            "inference_time_ms": round(inference_time_ms, 2),
+            "model_version": self.model_version,
+        }
+
+        if digest:
+            with self._cache_lock:
+                self._predict_cache[digest] = {
+                    "predicted_class": base["predicted_class"],
+                    "confidence": base["confidence"],
+                    "top_3": base["top_3"],
+                    "model_version": self.model_version,
+                }
+                self._predict_cache.move_to_end(digest)
+                if len(self._predict_cache) > self._cache_size:
+                    self._predict_cache.popitem(last=False)
+
+        self.telemetry.record(
+            result["inference_time_ms"],
+            [result["predicted_class"]],
+            [result["is_uncertain"]],
+            cache_hit=False,
+        )
         return result
 
     def predict_batch(self, image_bytes_list: List[bytes]) -> Tuple[List[Dict[str, Any]], float]:
@@ -244,4 +378,82 @@ class ModelService:
         logits, total_ms = self._run_batch_logits(batch)
         probs = _softmax_2d(logits)
         items = [self._format_prediction(probs[i]) for i in range(len(probs))]
-        return items, round(total_ms, 2)
+        rounded_ms = round(total_ms, 2)
+        self.telemetry.record(
+            rounded_ms,
+            [it["predicted_class"] for it in items],
+            [it["is_uncertain"] for it in items],
+            cache_hit=False,
+        )
+        return items, rounded_ms
+
+    def explain(self, image_bytes: bytes, grid: int = 5, patch_size: int = 72) -> Dict[str, Any]:
+        """
+        Giải thích XAI bằng Batched Occlusion Sensitivity Heatmap (thuần ONNX/NumPy/PIL):
+        - Che lần lượt 25 vùng (5x5 chồng lấp) trên ảnh lá bằng màu trung bình (0 sau chuẩn hóa).
+        - Đẩy cả 25 ảnh vào 1 batch ONNX duy nhất để đo mức sụt giảm xác suất của lớp dự đoán.
+        - Vùng nào bị che làm xác suất tụt mạnh nhất => vùng vết bệnh quan trọng nhất (màu đỏ/vàng).
+        """
+        t0 = time.perf_counter()
+        img_224 = self._decode_and_resize(image_bytes)
+        base_chw = self._pil_to_chw(img_224)
+
+        # 1. Dự đoán gốc
+        base_logits, _ = self._run_batch_logits(base_chw[None, ...])
+        base_probs = _softmax_2d(base_logits)[0]
+        target_idx = int(np.argmax(base_probs))
+        base_prob = float(base_probs[target_idx])
+        pred_info = self._format_prediction(base_probs)
+
+        # 2. Tạo 25 ảnh bị che từng vùng (5x5 chồng lấp) và chạy 1 batch duy nhất
+        coords = np.linspace(0, IMAGE_SIZE - patch_size, grid, dtype=int)
+        occluded_batch = np.repeat(base_chw[None, ...], grid * grid, axis=0)
+        boxes: List[Tuple[int, int, int, int]] = []
+        idx = 0
+        for y in coords:
+            for x in coords:
+                occluded_batch[idx, :, y : y + patch_size, x : x + patch_size] = 0.0
+                boxes.append((int(y), int(y + patch_size), int(x), int(x + patch_size)))
+                idx += 1
+
+        occ_logits, _ = self._run_batch_logits(occluded_batch)
+        occ_probs = _softmax_2d(occ_logits)[:, target_idx]
+
+        # 3. Cộng dồn độ giảm xác suất theo từng pixel để tạo bản đồ nhiệt mượt
+        importance = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
+        counts = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
+        for drop, (y1, y2, x1, x2) in zip(np.maximum(0.0, base_prob - occ_probs), boxes):
+            importance[y1:y2, x1:x2] += float(drop)
+            counts[y1:y2, x1:x2] += 1.0
+
+        saliency = importance / np.maximum(counts, 1.0)
+        max_val = float(saliency.max())
+        norm = saliency / max_val if max_val > 1e-8 else saliency
+
+        # Làm mịn nhẹ qua resize xuống 32x32 rồi nội suy Bicubic lên 224x224
+        smooth_pil = Image.fromarray((norm * 255).astype(np.uint8)).resize((32, 32), Image.BILINEAR).resize(
+            (IMAGE_SIZE, IMAGE_SIZE), Image.BICUBIC
+        )
+        smooth_norm = np.asarray(smooth_pil, dtype=np.float32) / 255.0
+
+        # 4. Chồng heatmap màu lên ảnh lá gốc (alpha = 0.45)
+        heat_rgb = _jet_colormap(smooth_norm).astype(np.float32)
+        orig_rgb = np.asarray(img_224, dtype=np.float32)
+        alpha = (0.15 + 0.45 * smooth_norm)[..., None]
+        overlay = np.clip((1.0 - alpha) * orig_rgb + alpha * heat_rgb, 0, 255).astype(np.uint8)
+
+        buf = io.BytesIO()
+        Image.fromarray(overlay).save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        explain_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+
+        return {
+            **pred_info,
+            "method": f"Batched Occlusion Sensitivity ({grid}x{grid} patches, ONNX)",
+            "heatmap_base64": b64,
+            "explain_time_ms": explain_ms,
+            "model_version": self.model_version,
+        }
+
+    def get_metrics(self) -> Dict[str, Any]:
+        return self.telemetry.snapshot(self.model_version, self.backend_type)

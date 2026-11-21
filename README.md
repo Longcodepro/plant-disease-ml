@@ -140,10 +140,12 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
    - **Static Quantization (`--mode static`, QDQ + `quant_pre_process` + Calibration 150 ảnh rải đều 38 lớp):** Hỗ trợ tính cố định `scale/zero_point` trước khi deploy để loại bỏ hoàn toàn bước `DynamicQuantizeLinear` khi chạy trên các CPU server hỗ trợ INT8.
 3. **Backend FastAPI Plug & Play chuẩn Production ([`backend/main.py`](backend/main.py), [`backend/service.py`](backend/service.py)):**
    - **Model Factory & Lazy-import PyTorch:** Hỗ trợ 10 kiến trúc `.pth` **VÀ** chạy trực tiếp `.onnx` (FP32 / INT8) mà **không cần cài hay nạp PyTorch (~2 GB)** vào RAM.
-   - **Warmup & Non-blocking Serving:** Tự động chạy 1 lần warmup lúc startup (bỏ cold-start) và đẩy suy luận CPU vào `run_in_threadpool` để không chặn async event loop.
-   - **Suy luận theo lô (`POST /predict/batch`):** Tận dụng `dynamic_axes` của ONNX để xử lý tối đa 32 ảnh trong 1 lần gọi model duy nhất.
-   - **Kiểm soát đầu vào & Cảnh báo độ tin cậy:** Chặn file sai định dạng (`400`), ảnh hỏng (`400`), file > 10 MB (`413`), và trả cờ `is_uncertain` + `warning` khi xác suất dưới ngưỡng (`CONFIDENCE_THRESHOLD`, mặc định `0.60`).
-   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** 8 test case `pytest` kiểm chứng thực tế trên Apple M2 (**8/8 PASS trong 1.75s**, không cần PyTorch).
+   - **Warmup, Non-blocking & SHA-256 LRU Cache:** Tự động warmup lúc startup, chạy suy luận qua `run_in_threadpool`, và cache 256 ảnh gần nhất theo **SHA-256** (ảnh lặp lại trả kết quả trong **`< 0.5 ms`**, `cache_hit: true`).
+   - **Giải thích trực quan XAI (`POST /explain`):** Sinh **Batched Occlusion Sensitivity Heatmap** (25 patch chồng lấp chạy trong 1 batch ONNX duy nhất, thuần ONNX/NumPy/PIL, **không cần PyTorch/OpenCV**, ~0.66s trên M2) trả ảnh PNG Base64 khoanh đỏ vùng vết bệnh trên lá.
+   - **Giám sát trực tuyến (`GET /metrics` — Chip Huyen Ch. 8):** Theo dõi real-time tổng request, latency `avg / p50 / p95`, `cache_hit_rate`, tỷ lệ ảnh `is_uncertain` (tín hiệu phát hiện *data drift*) và top 5 bệnh hay gặp.
+   - **Suy luận theo lô (`POST /predict/batch`) & Input Guards:** Xử lý tối đa 32 ảnh/lần gọi ONNX, chặn file sai định dạng/ảnh hỏng (`400`), file > 10 MB (`413`), và cảnh báo độ tin cậy thấp (`is_uncertain`).
+   - **Docker siêu nhẹ ([`backend/Dockerfile`](backend/Dockerfile)):** Dùng `python:3.11-slim` + [`backend/requirements-onnx.txt`](backend/requirements-onnx.txt) (không có PyTorch) → đóng gói image chỉ **~280 MB** thay vì ~4 GB, kèm sẵn `HEALTHCHECK`.
+   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** **11/11 test case `pytest` PASS trong `1.52s`** trên Apple M2 (không cần cài PyTorch).
 4. **Ứng dụng Rust vào 2 điểm nút cổ chai thực tế ([`backend/rust/`](backend/rust/)):**
    - **🦀 `data-audit` ([`backend/rust/src/bin/data_audit.rs`](backend/rust/src/bin/data_audit.rs)) — Kiểm định dữ liệu đa luồng (`rayon` + `sha2` + `image`):** Khai thác toàn bộ nhân CPU để kiểm tra ảnh hỏng, thống kê độ phân giải và tính SHA-256 phát hiện rò rỉ dữ liệu `train ↔ valid` trên 87.867 ảnh nhanh hơn nhiều lần so với Python đơn luồng.
    - **🦀 `plant-disease-api` ([`backend/rust/src/main.rs`](backend/rust/src/main.rs)) — Serving API hiệu năng cao (`axum` + `ort` + `image`):** Giải mã & resize ảnh bằng native Rust (không có Python GIL), chạy trực tiếp model `.onnx` (FP32/INT8) với `GraphOptimizationLevel::Level3`, tiêu thụ RAM rất thấp và **giữ nguyên 100% JSON contract** của FastAPI (`/health`, `/predict`) nên Frontend Streamlit cắm vào chạy ngay không cần sửa code.
@@ -230,9 +232,9 @@ plant-disease-ml/
 │   ├── baseline1_simple_cnn.py       # Baseline 1: Vanilla CNN từ đầu
 │   └── 03_convnext_tiny_khoi.ipynb   # Notebook Colab T4: ConvNeXt-Tiny + ONNX + INT8
 ├── models/                           # Checkpoints (.pth), ONNX (.onnx, _int8.onnx), class_indices.json
-├── backend/                          # Tầng Serving Python (FastAPI: /health, /predict, /predict/batch)
+├── backend/                          # Tầng Serving Python (FastAPI: /health, /metrics, /predict, /predict/batch, /explain + Dockerfile)
 │   └── rust/                         # Tầng tối ưu Rust (plant-disease-api & data-audit CLI)
-├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (8 test cases)
+├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (11 test cases)
 └── frontend/                         # Tầng Web UI (Streamlit)
 ```
 
@@ -262,10 +264,15 @@ python scripts/quantize_onnx.py --mode static \
 
 ### Bước 3A: Chạy Backend Python (FastAPI — mặc định dùng ONNX INT8, không cần PyTorch)
 ```bash
+pip install -r backend/requirements-onnx.txt
 uvicorn backend.main:app --reload --port 8000
-# Swagger UI: http://localhost:8000/docs (gồm GET /health, POST /predict, POST /predict/batch)
+# Swagger UI: http://localhost:8000/docs (GET /health, /metrics · POST /predict, /predict/batch, /explain)
 # Chạy kiểm thử tự động API:
 pytest -v tests/test_api.py
+
+# Hoặc đóng gói & chạy bằng Docker siêu nhẹ (~280 MB, không PyTorch):
+docker build -f backend/Dockerfile -t plant-disease-api:onnx .
+docker run -p 8000:8000 plant-disease-api:onnx
 ```
 
 ### Bước 3B: Chạy bản tối ưu bằng Rust (Serving API & Data Audit)

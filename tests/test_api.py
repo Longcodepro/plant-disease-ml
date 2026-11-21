@@ -7,6 +7,7 @@ Chạy:
 
 from __future__ import annotations
 
+import base64
 import io
 import os
 import sys
@@ -115,3 +116,44 @@ def test_uncertain_warning_when_below_threshold():
         assert body["warning"] is not None
     finally:
         service.confidence_threshold = old_thr
+
+
+def test_sha256_cache_hit_returns_submillisecond():
+    img = _make_dummy_png((50, 160, 60))
+    r1 = client.post("/predict", files={"file": ("leaf_c.png", img, "image/png")})
+    r2 = client.post("/predict", files={"file": ("leaf_c.png", img, "image/png")})
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert r1.json()["cache_hit"] is False
+    assert r2.json()["cache_hit"] is True
+    assert r2.json()["predicted_class"] == r1.json()["predicted_class"]
+    assert r2.json()["inference_time_ms"] < r1.json()["inference_time_ms"]
+
+
+def test_explain_heatmap_endpoint():
+    sample = ROOT / "data" / "test" / "AppleCedarRust1.JPG"
+    img_bytes = sample.read_bytes() if sample.exists() else _make_dummy_png()
+    mime = "image/jpeg" if sample.exists() else "image/png"
+
+    resp = client.post("/explain", files={"file": ("leaf.jpg", img_bytes, mime)})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "Occlusion Sensitivity" in body["method"]
+    assert body["explain_time_ms"] > 0
+    if sample.exists():
+        assert body["predicted_class"] == "Apple___Cedar_apple_rust"
+    raw_png = base64.b64decode(body["heatmap_base64"])
+    heatmap = Image.open(io.BytesIO(raw_png))
+    assert heatmap.size == (224, 224)
+
+
+def test_metrics_telemetry_endpoint():
+    resp = client.get("/metrics")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total_requests"] >= 1
+    assert body["total_images_predicted"] >= 1
+    assert body["cache_hits"] >= 1
+    assert 0.0 <= body["cache_hit_rate"] <= 1.0
+    assert 0.0 <= body["uncertain_rate"] <= 1.0
+    assert body["latency_ms"]["p95"] >= body["latency_ms"]["p50"] >= 0.0
+    assert len(body["top_predicted_classes"]) >= 1
