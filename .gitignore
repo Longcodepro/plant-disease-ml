@@ -19,6 +19,13 @@ env/
 .ipynb_checkpoints/
 jupyter.log
 
+# Rust build artifacts
+backend/rust/target/
+
+# Large model binaries (>100MB GitHub limit — lưu trên Google Drive / Release)
+models/convnext_tiny_khoi.pth
+models/convnext_tiny_khoi.onnx
+
 # Mac & IDE
 .DS_Store
 .vscode/
