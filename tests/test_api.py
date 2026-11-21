@@ -137,7 +137,7 @@ def test_explain_heatmap_endpoint():
     resp = client.post("/explain", files={"file": ("leaf.jpg", img_bytes, mime)})
     assert resp.status_code == 200
     body = resp.json()
-    assert "Occlusion Sensitivity" in body["method"]
+    assert "CAM" in body["method"] or "Occlusion" in body["method"]
     assert body["explain_time_ms"] > 0
     if sample.exists():
         assert body["predicted_class"] == "Apple___Cedar_apple_rust"

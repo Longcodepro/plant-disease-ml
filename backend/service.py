@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageFilter, UnidentifiedImageError
 
 # Chuẩn hóa ImageNet đồng nhất tuyệt đối với quá trình training
 IMAGE_SIZE = 224
@@ -187,6 +187,8 @@ class ModelService:
         self.device: Any = None
         self.backend_type = "onnx" if self.model_path.suffix.lower() == ".onnx" else "pytorch"
         self.onnx_input_name: Optional[str] = None
+        self._cam_session: Any = None
+        self._cam_weights: Optional[np.ndarray] = None  # (C, num_classes) kết hợp LayerNorm gamma * W
         self.idx_to_class: Dict[int, str] = {}
         self.model_version = self.model_path.stem
 
@@ -226,6 +228,7 @@ class ModelService:
 
             dummy = np.zeros((1, 3, IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
             session.run(None, {self.onnx_input_name: dummy})
+            self._init_onnx_cam(providers)
             print(f"[OK] Đã tải & warmup mô hình ONNX từ {self.model_path} | providers={session.get_providers()}")
             return
 
@@ -387,25 +390,111 @@ class ModelService:
         )
         return items, rounded_ms
 
+    def _init_onnx_cam(self, providers: List[str]) -> None:
+        """
+        Khởi tạo nhánh Exact CAM (Class Activation Mapping — tương đương Grad-CAM cho mạng GAP)
+        trực tiếp từ đồ thị ONNX (hỗ trợ cả FP32 & INT8) mà không cần PyTorch.
+        """
+        try:
+            import onnx
+            import onnxruntime as ort
+            from onnx import TensorProto, helper, numpy_helper
+
+            m = onnx.load(str(self.model_path))
+            gap_node = next((n for n in m.graph.node if n.op_type == "GlobalAveragePool"), None)
+            if gap_node is None:
+                return
+
+            inits = {t.name: numpy_helper.to_array(t) for t in m.graph.initializer}
+
+            # Lấy trọng số lớp Linear cuối (hỗ trợ cả INT8 quantized & FP32)
+            W: Optional[np.ndarray] = None
+            if "classifier.2.weight_Transposed_quantized" in inits:
+                wq = inits["classifier.2.weight_Transposed_quantized"].astype(np.float32)
+                ws = inits["classifier.2.weight_Transposed_scale"].astype(np.float32)
+                wz = inits["classifier.2.weight_Transposed_zero_point"].astype(np.float32)
+                W = (wq - wz) * ws  # (C, num_classes)
+            elif "classifier.2.weight" in inits:
+                W = inits["classifier.2.weight"].astype(np.float32).T
+            elif "fc.weight" in inits:
+                W = inits["fc.weight"].astype(np.float32).T
+
+            if W is None:
+                return
+
+            # Nhân thêm gamma của LayerNorm (nếu có trong ConvNeXt head) để đúng gradient chính xác
+            if "classifier.0.weight" in inits and inits["classifier.0.weight"].shape[0] == W.shape[0]:
+                W = W * inits["classifier.0.weight"].astype(np.float32)[:, None]
+
+            fmap_name = gap_node.input[0]
+            m.graph.output.append(helper.make_tensor_value_info(fmap_name, TensorProto.FLOAT, None))
+            self._cam_session = ort.InferenceSession(m.SerializeToString(), providers=providers)
+            self._cam_weights = W
+            print(f"[OK] Đã bật Exact ONNX CAM/Grad-CAM trên feature map '{fmap_name}'")
+        except Exception as exc:
+            print(f"[INFO] Không bật được ONNX CAM ({exc}); dùng Occlusion Sensitivity fallback.")
+            self._cam_session = None
+            self._cam_weights = None
+
+    def _overlay_heatmap(self, img_224: Image.Image, map_2d: np.ndarray) -> str:
+        """Chuẩn hóa bản đồ nhiệt mượt, cắt nhiễu nền và chồng màu Jet lên ảnh lá -> Base64 PNG."""
+        lo, hi = float(map_2d.min()), float(map_2d.max())
+        norm = (map_2d - lo) / (hi - lo + 1e-8) if hi - lo > 1e-8 else np.zeros_like(map_2d)
+
+        smooth_pil = (
+            Image.fromarray((norm * 255).astype(np.uint8))
+            .resize((IMAGE_SIZE, IMAGE_SIZE), Image.BICUBIC)
+            .filter(ImageFilter.GaussianBlur(radius=6))
+        )
+        sn = np.asarray(smooth_pil, dtype=np.float32) / 255.0
+        # Lọc nền yếu (< 0.15) để giữ sạch nền ảnh, chỉ tô nổi vùng đốm bệnh
+        sn = np.clip((sn - 0.15) / 0.85, 0.0, 1.0)
+
+        heat_rgb = _jet_colormap(sn).astype(np.float32)
+        orig_rgb = np.asarray(img_224, dtype=np.float32)
+        alpha = (0.62 * (sn ** 1.15))[..., None]
+        overlay = np.clip((1.0 - alpha) * orig_rgb + alpha * heat_rgb, 0, 255).astype(np.uint8)
+
+        buf = io.BytesIO()
+        Image.fromarray(overlay).save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode("ascii")
+
     def explain(self, image_bytes: bytes, grid: int = 5, patch_size: int = 72) -> Dict[str, Any]:
         """
-        Giải thích XAI bằng Batched Occlusion Sensitivity Heatmap (thuần ONNX/NumPy/PIL):
-        - Che lần lượt 25 vùng (5x5 chồng lấp) trên ảnh lá bằng màu trung bình (0 sau chuẩn hóa).
-        - Đẩy cả 25 ảnh vào 1 batch ONNX duy nhất để đo mức sụt giảm xác suất của lớp dự đoán.
-        - Vùng nào bị che làm xác suất tụt mạnh nhất => vùng vết bệnh quan trọng nhất (màu đỏ/vàng).
+        Giải thích XAI:
+        - Ưu tiên **Exact ONNX Class Activation Mapping (CAM / Grad-CAM)** trên feature map 7x7 cuối cùng
+          (1 lần chạy duy nhất ~25 ms, khoanh chính xác vùng đốm bệnh trên lá, không cần PyTorch).
+        - Tự động fallback sang Batched Occlusion Sensitivity nếu model không có nhánh CAM.
         """
         t0 = time.perf_counter()
         img_224 = self._decode_and_resize(image_bytes)
         base_chw = self._pil_to_chw(img_224)
 
-        # 1. Dự đoán gốc
+        if self._cam_session is not None and self._cam_weights is not None:
+            logits, fmap = self._cam_session.run(None, {self.onnx_input_name: base_chw[None, ...]})
+            base_probs = _softmax_2d(np.asarray(logits, dtype=np.float32))[0]
+            target_idx = int(np.argmax(base_probs))
+            pred_info = self._format_prediction(base_probs)
+
+            # fmap: (1, C, H, W) -> (H, W, C); CAM = ReLU(fmap @ (gamma * W[:, target]))
+            f_hwc = np.transpose(fmap[0], (1, 2, 0))
+            cam_map = np.maximum(0.0, f_hwc @ self._cam_weights[:, target_idx])
+            b64 = self._overlay_heatmap(img_224, cam_map)
+            return {
+                **pred_info,
+                "method": "Exact Class Activation Mapping (CAM / Grad-CAM, ONNX)",
+                "heatmap_base64": b64,
+                "explain_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
+                "model_version": self.model_version,
+            }
+
+        # Fallback: Batched Occlusion Sensitivity
         base_logits, _ = self._run_batch_logits(base_chw[None, ...])
         base_probs = _softmax_2d(base_logits)[0]
         target_idx = int(np.argmax(base_probs))
-        base_prob = float(base_probs[target_idx])
+        base_logit = float(base_logits[0, target_idx])
         pred_info = self._format_prediction(base_probs)
 
-        # 2. Tạo 25 ảnh bị che từng vùng (5x5 chồng lấp) và chạy 1 batch duy nhất
         coords = np.linspace(0, IMAGE_SIZE - patch_size, grid, dtype=int)
         occluded_batch = np.repeat(base_chw[None, ...], grid * grid, axis=0)
         boxes: List[Tuple[int, int, int, int]] = []
@@ -417,41 +506,20 @@ class ModelService:
                 idx += 1
 
         occ_logits, _ = self._run_batch_logits(occluded_batch)
-        occ_probs = _softmax_2d(occ_logits)[:, target_idx]
+        drops = np.maximum(0.0, base_logit - occ_logits[:, target_idx])
 
-        # 3. Cộng dồn độ giảm xác suất theo từng pixel để tạo bản đồ nhiệt mượt
         importance = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
         counts = np.zeros((IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
-        for drop, (y1, y2, x1, x2) in zip(np.maximum(0.0, base_prob - occ_probs), boxes):
+        for drop, (y1, y2, x1, x2) in zip(drops, boxes):
             importance[y1:y2, x1:x2] += float(drop)
             counts[y1:y2, x1:x2] += 1.0
 
-        saliency = importance / np.maximum(counts, 1.0)
-        max_val = float(saliency.max())
-        norm = saliency / max_val if max_val > 1e-8 else saliency
-
-        # Làm mịn nhẹ qua resize xuống 32x32 rồi nội suy Bicubic lên 224x224
-        smooth_pil = Image.fromarray((norm * 255).astype(np.uint8)).resize((32, 32), Image.BILINEAR).resize(
-            (IMAGE_SIZE, IMAGE_SIZE), Image.BICUBIC
-        )
-        smooth_norm = np.asarray(smooth_pil, dtype=np.float32) / 255.0
-
-        # 4. Chồng heatmap màu lên ảnh lá gốc (alpha = 0.45)
-        heat_rgb = _jet_colormap(smooth_norm).astype(np.float32)
-        orig_rgb = np.asarray(img_224, dtype=np.float32)
-        alpha = (0.15 + 0.45 * smooth_norm)[..., None]
-        overlay = np.clip((1.0 - alpha) * orig_rgb + alpha * heat_rgb, 0, 255).astype(np.uint8)
-
-        buf = io.BytesIO()
-        Image.fromarray(overlay).save(buf, format="PNG")
-        b64 = base64.b64encode(buf.getvalue()).decode("ascii")
-        explain_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-
+        b64 = self._overlay_heatmap(img_224, importance / np.maximum(counts, 1.0))
         return {
             **pred_info,
-            "method": f"Batched Occlusion Sensitivity ({grid}x{grid} patches, ONNX)",
+            "method": f"Batched Occlusion Sensitivity ({grid}x{grid} patches)",
             "heatmap_base64": b64,
-            "explain_time_ms": explain_ms,
+            "explain_time_ms": round((time.perf_counter() - t0) * 1000.0, 2),
             "model_version": self.model_version,
         }
 

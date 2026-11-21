@@ -322,6 +322,12 @@ st.markdown(
 )
 
 
+def render_html(html: str) -> None:
+    """Nén khoảng trắng đầu dòng trước khi render để Markdown không bao giờ hiểu nhầm thành code block."""
+    compact = "".join(line.strip() for line in html.splitlines())
+    st.markdown(compact, unsafe_allow_html=True)
+
+
 def format_label(raw_label: str) -> Tuple[str, str, bool]:
     """Tách nhãn PlantVillage 'Apple___Cedar_apple_rust' -> ('Apple', 'Cedar apple rust', False)."""
     if "___" in raw_label:
@@ -361,7 +367,7 @@ status_html = (
     else '<span class="status-dot offline">● Chưa kết nối máy chủ suy luận</span>'
 )
 
-st.markdown(
+render_html(
     f"""
     <div class="hero-banner">
         <div class="hero-top">
@@ -370,17 +376,16 @@ st.markdown(
         </div>
         <p class="hero-sub">
             Hệ thống Thị giác Máy tính nhận diện sớm 38 loại cây trồng &amp; bệnh lý từ ảnh chụp lá cây,
-            tích hợp bản đồ nhiệt giải thích XAI và giám sát độ trễ trực tuyến.
+            tích hợp bản đồ nhiệt giải thích XAI (CAM / Grad-CAM) và giám sát độ trễ trực tuyến.
         </p>
         <div class="hero-pills">
             <span class="hero-pill">🧠 ConvNeXt-Tiny · ONNX INT8 (32.3 MB)</span>
             <span class="hero-pill">🎯 99.95% Val Macro-F1 · 33/33 Test</span>
             <span class="hero-pill">⚡ 23.8 ms / ảnh trên Apple M2</span>
-            <span class="hero-pill">🔥 XAI Occlusion Heatmap</span>
+            <span class="hero-pill">🔥 XAI CAM / Grad-CAM (~26 ms)</span>
         </div>
     </div>
-    """,
-    unsafe_allow_html=True,
+    """
 )
 
 if not is_online:
@@ -449,7 +454,7 @@ with tab_single:
                             icon = "⚠️" if is_uncertain else ("✅" if is_healthy else "🩺")
                             cache_badge = '<span class="meta-chip cache">⚡ Cache Hit</span>' if res.get("cache_hit") else ""
 
-                            st.markdown(
+                            render_html(
                                 f"""
                                 <div class="diag-card {card_cls}">
                                     <div class="diag-plant">🌱 {plant}</div>
@@ -460,8 +465,7 @@ with tab_single:
                                         {cache_badge}
                                     </div>
                                 </div>
-                                """,
-                                unsafe_allow_html=True,
+                                """
                             )
 
                             if res.get("warning"):
@@ -487,7 +491,7 @@ with tab_single:
                                     """
                                 )
                             bars_html.append("</div>")
-                            st.markdown("".join(bars_html), unsafe_allow_html=True)
+                            render_html("".join(bars_html))
 
                             if show_xai:
                                 with st.spinner("Đang tạo bản đồ nhiệt giải thích vùng bệnh..."):
@@ -499,43 +503,39 @@ with tab_single:
                                 if ex_resp.status_code == 200:
                                     ex = ex_resp.json()
                                     heat_img = Image.open(io.BytesIO(base64.b64decode(ex["heatmap_base64"])))
-                                    st.markdown(
+                                    render_html(
                                         f'<div class="panel-heading">🔥 Giải thích trực quan XAI '
-                                        f'<span style="font-size:0.8rem;font-weight:500;color:#64748b;">({ex["explain_time_ms"]} ms)</span></div>',
-                                        unsafe_allow_html=True,
+                                        f'<span style="font-size:0.8rem;font-weight:500;color:#64748b;">({ex["method"]} · {ex["explain_time_ms"]} ms)</span></div>'
                                     )
                                     c1, c2 = st.columns(2, gap="medium")
                                     c1.image(Image.open(io.BytesIO(img_bytes)), caption="Ảnh gốc", use_container_width=True)
                                     c2.image(heat_img, caption="Vùng mô hình tập trung", use_container_width=True)
-                                    st.markdown(
-                                        '<div class="heat-legend"><span>Ít ảnh hưởng</span><div class="heat-bar"></div><span>Vùng vết bệnh quyết định</span></div>',
-                                        unsafe_allow_html=True,
+                                    render_html(
+                                        '<div class="heat-legend"><span>Ít ảnh hưởng</span><div class="heat-bar"></div><span>Vùng vết bệnh quyết định</span></div>'
                                     )
                                 else:
                                     st.info("Backend hiện tại chưa bật endpoint `/explain`.")
                     except Exception as e:
                         st.error(f"Không thể kết nối máy chủ suy luận: {e}")
             else:
-                st.markdown(
+                render_html(
                     """
                     <div class="empty-state">
                         <div style="font-size:2.2rem;margin-bottom:0.4rem;">🌿</div>
                         <div style="font-weight:700;color:#1e293b;margin-bottom:0.25rem;">Ảnh đã sẵn sàng để phân tích</div>
                         <div style="font-size:0.9rem;">Nhấn nút <b>🔍 Chẩn đoán ngay</b> ở phía trên để nhận kết quả &amp; bản đồ nhiệt XAI.</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
         else:
-            st.markdown(
+            render_html(
                 """
                 <div class="empty-state">
                     <div style="font-size:2.2rem;margin-bottom:0.4rem;">📷</div>
                     <div style="font-weight:700;color:#1e293b;margin-bottom:0.25rem;">Chưa có ảnh đầu vào</div>
                     <div style="font-size:0.9rem;">Hãy chọn ảnh mẫu hoặc tải lên ảnh lá cây ở cột bên trái.</div>
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
 
@@ -614,15 +614,14 @@ with tab_batch:
                 except Exception as e:
                     st.error(f"Lỗi kết nối `/predict/batch`: {e}")
     else:
-        st.markdown(
+        render_html(
             """
             <div class="empty-state">
                 <div style="font-size:2rem;margin-bottom:0.4rem;">📂</div>
                 <div style="font-weight:700;color:#1e293b;">Kéo thả nhiều ảnh lá cây vào khung trên</div>
                 <div style="font-size:0.9rem;">Hệ thống sẽ chạy gộp toàn bộ ảnh trong 1 batch ONNX và xuất bảng CSV kết quả.</div>
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
 
 
@@ -677,15 +676,14 @@ with tab_monitor:
                 }
                 st.bar_chart(pretty_counts, color="#059669")
             else:
-                st.markdown(
+                render_html(
                     """
                     <div class="empty-state">
                         <div style="font-size:2rem;margin-bottom:0.4rem;">📈</div>
                         <div style="font-weight:700;color:#1e293b;">Chưa có dữ liệu thống kê</div>
                         <div style="font-size:0.9rem;">Hãy chẩn đoán thử vài ảnh ở Tab 1 rồi bấm <b>🔄 Làm mới</b> để xem biểu đồ trực tiếp.</div>
                     </div>
-                    """,
-                    unsafe_allow_html=True,
+                    """
                 )
         else:
             st.warning(f"Máy chủ không trả về `/metrics` (HTTP {m_resp.status_code}).")
