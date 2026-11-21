@@ -35,6 +35,8 @@ use std::{
 use tower_http::cors::{Any, CorsLayer};
 
 const IMAGE_SIZE: u32 = 224;
+const MAX_UPLOAD_BYTES: usize = 10 * 1024 * 1024;
+const CONFIDENCE_THRESHOLD: f32 = 0.60;
 const IMAGENET_MEAN: [f32; 3] = [0.485, 0.456, 0.406];
 const IMAGENET_STD: [f32; 3] = [0.229, 0.224, 0.225];
 
@@ -61,6 +63,8 @@ struct PredictionResponse {
     predicted_class: String,
     confidence: f32,
     top_3: Vec<PredictionItem>,
+    is_uncertain: bool,
+    warning: Option<String>,
     inference_time_ms: f64,
     model_version: String,
 }
@@ -154,6 +158,14 @@ async fn predict(
     }
 
     let bytes = match image_bytes {
+        Some(b) if b.len() > MAX_UPLOAD_BYTES => {
+            return (
+                StatusCode::PAYLOAD_TOO_LARGE,
+                Json(serde_json::json!(ErrorResponse {
+                    detail: "File ảnh vượt giới hạn 10 MB.".into()
+                })),
+            );
+        }
         Some(b) if !b.is_empty() => b,
         _ => {
             return (
@@ -209,10 +221,23 @@ async fn predict(
             .first()
             .ok_or_else(|| "Model không trả về lớp nào.".to_string())?;
 
+        let is_uncertain = best.confidence < CONFIDENCE_THRESHOLD;
+        let warning = if is_uncertain {
+            Some(format!(
+                "Độ tin cậy thấp ({:.1}% < {:.0}%). Ảnh có thể bị mờ hoặc không phải lá cây thuộc 38 lớp.",
+                best.confidence * 100.0,
+                CONFIDENCE_THRESHOLD * 100.0
+            ))
+        } else {
+            None
+        };
+
         Ok(PredictionResponse {
             predicted_class: best.class_name.clone(),
             confidence: best.confidence,
             top_3,
+            is_uncertain,
+            warning,
             inference_time_ms: latency_ms,
             model_version: state_clone.model_version.clone(),
         })

@@ -138,8 +138,12 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
      - **Trên CPU Apple M2 (ARM64):** Dynamic INT8 **nhanh vượt trội** — tụt từ **`39.97 ms` (FP32) xuống chỉ còn `23.81 ms/ảnh` (`42.0 FPS`, nhanh hơn 1.68x)**! Cộng cả decode + resize ảnh (`1.28 ms`) tổng End-to-End chỉ **`~25.1 ms`**. **Lý do:** Kiến trúc Apple Silicon (ARMv8.2+) tích hợp sẵn tập lệnh nhân ma trận INT8 gốc (`DotProd / i8mm`) cùng băng thông bộ nhớ hợp nhất lớn, nên vừa khai thác triệt để phép nhân INT8 vừa tiết kiệm **3.29x băng thông nạp trọng số**.
      - **Trên Apple M2 CoreML (`CoreMLExecutionProvider`):** Chậm hơn CPU thuần (`99.16 ms`) do đồ thị `ConvNeXt-Tiny` có các toán tử như `LayerNorm` không được CoreML hỗ trợ liền mạch nên bị cắt thành **60 phân mảnh nhỏ** (`213/290 nodes`) phải copy dữ liệu qua lại giữa CoreML và CPU.
    - **Static Quantization (`--mode static`, QDQ + `quant_pre_process` + Calibration 150 ảnh rải đều 38 lớp):** Hỗ trợ tính cố định `scale/zero_point` trước khi deploy để loại bỏ hoàn toàn bước `DynamicQuantizeLinear` khi chạy trên các CPU server hỗ trợ INT8.
-3. **Backend FastAPI Plug & Play ([`backend/service.py`](backend/service.py)):**
-   - Nâng cấp từ hardcode `SimplePlantCNN` sang **Model Factory** hỗ trợ 10 kiến trúc `.pth` (`simple_cnn`, `convnext_tiny`, `convnext_small`, `efficientnet_b0`, `efficientnet_v2_s`, `resnet18`, `resnet50`, `mobilenet_v2`, `mobilenet_v3_large`, `swin_t`) **VÀ** tự động chạy trực tiếp mọi file **`.onnx` (FP32 / INT8)** chỉ bằng biến môi trường `MODEL_PATH`.
+3. **Backend FastAPI Plug & Play chuẩn Production ([`backend/main.py`](backend/main.py), [`backend/service.py`](backend/service.py)):**
+   - **Model Factory & Lazy-import PyTorch:** Hỗ trợ 10 kiến trúc `.pth` **VÀ** chạy trực tiếp `.onnx` (FP32 / INT8) mà **không cần cài hay nạp PyTorch (~2 GB)** vào RAM.
+   - **Warmup & Non-blocking Serving:** Tự động chạy 1 lần warmup lúc startup (bỏ cold-start) và đẩy suy luận CPU vào `run_in_threadpool` để không chặn async event loop.
+   - **Suy luận theo lô (`POST /predict/batch`):** Tận dụng `dynamic_axes` của ONNX để xử lý tối đa 32 ảnh trong 1 lần gọi model duy nhất.
+   - **Kiểm soát đầu vào & Cảnh báo độ tin cậy:** Chặn file sai định dạng (`400`), ảnh hỏng (`400`), file > 10 MB (`413`), và trả cờ `is_uncertain` + `warning` khi xác suất dưới ngưỡng (`CONFIDENCE_THRESHOLD`, mặc định `0.60`).
+   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** 8 test case `pytest` kiểm chứng thực tế trên Apple M2 (**8/8 PASS trong 1.75s**, không cần PyTorch).
 4. **Ứng dụng Rust vào 2 điểm nút cổ chai thực tế ([`backend/rust/`](backend/rust/)):**
    - **🦀 `data-audit` ([`backend/rust/src/bin/data_audit.rs`](backend/rust/src/bin/data_audit.rs)) — Kiểm định dữ liệu đa luồng (`rayon` + `sha2` + `image`):** Khai thác toàn bộ nhân CPU để kiểm tra ảnh hỏng, thống kê độ phân giải và tính SHA-256 phát hiện rò rỉ dữ liệu `train ↔ valid` trên 87.867 ảnh nhanh hơn nhiều lần so với Python đơn luồng.
    - **🦀 `plant-disease-api` ([`backend/rust/src/main.rs`](backend/rust/src/main.rs)) — Serving API hiệu năng cao (`axum` + `ort` + `image`):** Giải mã & resize ảnh bằng native Rust (không có Python GIL), chạy trực tiếp model `.onnx` (FP32/INT8) với `GraphOptimizationLevel::Level3`, tiêu thụ RAM rất thấp và **giữ nguyên 100% JSON contract** của FastAPI (`/health`, `/predict`) nên Frontend Streamlit cắm vào chạy ngay không cần sửa code.
@@ -226,8 +230,9 @@ plant-disease-ml/
 │   ├── baseline1_simple_cnn.py       # Baseline 1: Vanilla CNN từ đầu
 │   └── 03_convnext_tiny_khoi.ipynb   # Notebook Colab T4: ConvNeXt-Tiny + ONNX + INT8
 ├── models/                           # Checkpoints (.pth), ONNX (.onnx, _int8.onnx), class_indices.json
-├── backend/                          # Tầng Serving Python (FastAPI Plug & Play .pth/.onnx)
-├── backend/rust/                     # Tầng tối ưu Rust (plant-disease-api & data-audit CLI)
+├── backend/                          # Tầng Serving Python (FastAPI: /health, /predict, /predict/batch)
+│   └── rust/                         # Tầng tối ưu Rust (plant-disease-api & data-audit CLI)
+├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (8 test cases)
 └── frontend/                         # Tầng Web UI (Streamlit)
 ```
 
@@ -255,10 +260,12 @@ python scripts/quantize_onnx.py --mode static \
   --data-dir data --calib-samples 150 --eval-valid --max-samples 1600
 ```
 
-### Bước 3A: Chạy Backend Python (FastAPI — hỗ trợ cả `.pth` và `.onnx`)
+### Bước 3A: Chạy Backend Python (FastAPI — mặc định dùng ONNX INT8, không cần PyTorch)
 ```bash
-MODEL_PATH="models/convnext_tiny_khoi_int8.onnx" uvicorn backend.main:app --reload --port 8000
-# Swagger UI: http://localhost:8000/docs
+uvicorn backend.main:app --reload --port 8000
+# Swagger UI: http://localhost:8000/docs (gồm GET /health, POST /predict, POST /predict/batch)
+# Chạy kiểm thử tự động API:
+pytest -v tests/test_api.py
 ```
 
 ### Bước 3B: Chạy bản tối ưu bằng Rust (Serving API & Data Audit)
