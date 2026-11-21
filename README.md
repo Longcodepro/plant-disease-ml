@@ -10,16 +10,15 @@ Dự án được thiết kế theo kiến trúc 3 tầng độc lập (3-Tier D
 
 ## 🚀 1. Hướng dẫn Tải Dữ liệu (Dataset Setup)
 
-Repo này **không lưu trữ ảnh trực tiếp** để đảm bảo repo gọn nhẹ. Khi clone dự án về, bạn chạy lệnh sau để tự động tải và giải nén dữ liệu vào đúng vị trí `data/train`, `data/valid`, `data/test`:
+Repo này **không lưu trữ ảnh trực tiếp** để đảm bảo repo gọn nhẹ. Khi clone dự án về, bạn chỉ cần chạy đúng **1 lệnh duy nhất** sau:
 
 ```bash
-# Cách 1: Tải trực tiếp từ link Google Drive
-python scripts/download_data.py --url "LINK_GOOGLE_DRIVE"
-
-# Cách 2: Nếu bạn đã có sẵn file archive.zip trong thư mục gốc
 python scripts/download_data.py
 ```
-> Script sẽ tự động nhận diện cấu trúc tệp nén và giải nén chuẩn vào thư mục `data/`.
+> Script đã được tích hợp sẵn link Google Drive của nhóm (`data.tar.gz` ~1.3GB). Nó sẽ:
+> 1. Tự động tải bộ dữ liệu từ Google Drive.
+> 2. Tự động giải nén và sắp xếp chuẩn vào `data/train` (70.295 ảnh) và `data/valid` (17.572 ảnh).
+> 3. Tự động dọn dẹp file nén tạm để tiết kiệm dung lượng ổ cứng.
 
 ---
 

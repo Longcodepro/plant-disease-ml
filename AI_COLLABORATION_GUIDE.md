@@ -65,10 +65,11 @@ plant-disease-ml/
 
 ## 4. LỆNH NHANH (QUICKSTART CHO THÀNH VIÊN)
 
-1. **Kéo dữ liệu về máy:**
+1. **Kéo dữ liệu về máy (Chỉ 1 lệnh duy nhất):**
    ```bash
-   python scripts/download_data.py --url "<LINK_GDRIVE_CỦA_NHÓM>"
+   python scripts/download_data.py
    ```
+   *(Link Google Drive đã được gắn sẵn trong script, tự động tải và bung vào `data/train` & `data/valid`)*
 2. **Cài đặt thư viện:**
    ```bash
    pip install -r backend/requirements.txt

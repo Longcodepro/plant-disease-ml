@@ -14,8 +14,8 @@ import tarfile
 import argparse
 from pathlib import Path
 
-# Cấu hình ID hoặc link Google Drive mặc định (sẽ thay thế khi có link chính thức)
-DEFAULT_GDRIVE_FILE_ID = "YOUR_GDRIVE_FILE_ID_HERE"
+# Cấu hình ID hoặc link Google Drive mặc định của dự án
+DEFAULT_GDRIVE_FILE_ID = "1HKKtjCbc0BcdcNAMA4ualjxXhOprBaqc"
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT_DIR / "data"
