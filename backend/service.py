@@ -243,7 +243,10 @@ class ModelService:
 
             avail = ort.get_available_providers()
             providers = ["CUDAExecutionProvider", "CPUExecutionProvider"] if "CUDAExecutionProvider" in avail else ["CPUExecutionProvider"]
-            session = ort.InferenceSession(str(self.model_path), providers=providers)
+
+            # Dùng CHUNG 1 ONNX InferenceSession cho cả predict & Exact CAM để giảm 50% RAM (rất quan trọng cho Render Free 512MB)
+            self._init_onnx_cam(providers)
+            session = self._cam_session if self._cam_session is not None else ort.InferenceSession(str(self.model_path), providers=providers)
             self.model = session
             self.backend_type = "onnx"
             self.onnx_input_name = session.get_inputs()[0].name
@@ -251,8 +254,7 @@ class ModelService:
 
             dummy = np.zeros((1, 3, IMAGE_SIZE, IMAGE_SIZE), dtype=np.float32)
             session.run(None, {self.onnx_input_name: dummy})
-            self._init_onnx_cam(providers)
-            print(f"[OK] Đã tải & warmup mô hình ONNX từ {self.model_path} | providers={session.get_providers()}")
+            print(f"[OK] Đã tải & warmup mô hình ONNX (single-session) từ {self.model_path} | providers={session.get_providers()}")
             return
 
         import torch
@@ -296,7 +298,8 @@ class ModelService:
 
         if self.backend_type == "onnx":
             start = time.perf_counter()
-            logits = self.model.run(None, {self.onnx_input_name: batch_chw})[0]
+            out_name = self.model.get_outputs()[0].name
+            logits = self.model.run([out_name], {self.onnx_input_name: batch_chw})[0]
             elapsed_ms = (time.perf_counter() - start) * 1000.0
             return np.asarray(logits, dtype=np.float32), elapsed_ms
 
