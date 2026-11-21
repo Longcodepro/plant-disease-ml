@@ -31,8 +31,8 @@ Hệ thống học sâu (Deep Learning) nhận diện **38 loại cây trồng &
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     │ HTTP Multipart (/health, /predict)
 ┌───────────────────────────────────▼───────────────────────────────────────┐
-│ TẦNG 3: WEB UI (frontend/app.py — Streamlit, Port 8501)                   │
-│  • Upload ảnh, hiển thị trạng thái API, kết quả chẩn đoán & Top-3         │
+│ TẦNG 3: WEB UI (frontend/ — React + Vite + TypeScript + Tailwind, :5173)  │
+│  • Interactive XAI Inspector (Before/After + Opacity 60fps), Batch, Charts│
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -140,48 +140,44 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
    - **Static Quantization (`--mode static`, QDQ + `quant_pre_process` + Calibration 150 ảnh rải đều 38 lớp):** Hỗ trợ tính cố định `scale/zero_point` trước khi deploy để loại bỏ hoàn toàn bước `DynamicQuantizeLinear` khi chạy trên các CPU server hỗ trợ INT8.
 3. **Backend FastAPI Plug & Play chuẩn Production ([`backend/main.py`](backend/main.py), [`backend/service.py`](backend/service.py)):**
    - **Model Factory & Lazy-import PyTorch:** Hỗ trợ 10 kiến trúc `.pth` **VÀ** chạy trực tiếp `.onnx` (FP32 / INT8) mà **không cần cài hay nạp PyTorch (~2 GB)** vào RAM.
-   - **Warmup & Non-blocking Serving:** Tự động chạy 1 lần warmup lúc startup (bỏ cold-start) và đẩy suy luận CPU vào `run_in_threadpool` để không chặn async event loop.
-   - **Suy luận theo lô (`POST /predict/batch`):** Tận dụng `dynamic_axes` của ONNX để xử lý tối đa 32 ảnh trong 1 lần gọi model duy nhất.
-   - **Kiểm soát đầu vào & Cảnh báo độ tin cậy:** Chặn file sai định dạng (`400`), ảnh hỏng (`400`), file > 10 MB (`413`), và trả cờ `is_uncertain` + `warning` khi xác suất dưới ngưỡng (`CONFIDENCE_THRESHOLD`, mặc định `0.60`).
-   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** 8 test case `pytest` kiểm chứng thực tế trên Apple M2 (**8/8 PASS trong 1.75s**, không cần PyTorch).
+   - **Warmup, Non-blocking & SHA-256 LRU Cache:** Tự động warmup lúc startup, chạy suy luận qua `run_in_threadpool`, và cache 256 ảnh gần nhất theo **SHA-256** (ảnh lặp lại trả kết quả trong **`< 0.5 ms`**, `cache_hit: true`).
+   - **Giải thích trực quan XAI (`POST /api/predict` & `/explain`):** Trích xuất **Exact Class Activation Mapping (CAM / Grad-CAM)** trực tiếp từ feature map `7×7` trước `GlobalAveragePool` của đồ thị ONNX INT8 (chỉ **1 lần chạy ~26 ms**, thuần ONNX/NumPy/PIL — **không cần PyTorch/OpenCV**), trả về đồng thời ảnh gốc + lớp phủ RGBA trong suốt (`heatmap_only_base64`) để Frontend React kéo độ mờ 60fps & kéo Before/After không cần gọi lại API.
+   - **Khuyến nghị nông học (`backend/agronomy.py`) & Ảnh mẫu (`GET /api/samples`):** Tự động trả tóm tắt triệu chứng, hướng xử lý & phòng ngừa cho toàn bộ 38 lớp PlantVillage, kèm endpoint đọc ảnh mẫu chống path traversal.
+   - **Giám sát trực tuyến (`GET /api/metrics` — Chip Huyen Ch. 8):** Theo dõi real-time tổng request, latency `avg / p50 / p95`, `cache_hit_rate`, tỷ lệ ảnh `is_uncertain`, top 5 bệnh hay gặp và lịch sử 100 request gần nhất (`history[]`) cho biểu đồ Recharts.
+   - **Suy luận theo lô (`POST /api/predict-batch`) & Input Guards:** Xử lý tối đa 32 ảnh/lần gọi ONNX, đọc giới hạn bộ nhớ (`MAX_UPLOAD_BYTES + 1`), chặn file sai định dạng/ảnh hỏng (`400`), file > 10 MB (`413`), và cảnh báo độ tin cậy thấp (`is_uncertain`).
+   - **Docker siêu nhẹ ([`backend/Dockerfile`](backend/Dockerfile)):** Dùng `python:3.11-slim` + [`backend/requirements-onnx.txt`](backend/requirements-onnx.txt) (không có PyTorch) → đóng gói image chỉ **~280 MB** thay vì ~4 GB, kèm sẵn `HEALTHCHECK`.
+   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** **17/17 test case `pytest` PASS trong `1.04s`** trên Apple M2 (không cần cài PyTorch).
 4. **Ứng dụng Rust vào 2 điểm nút cổ chai thực tế ([`backend/rust/`](backend/rust/)):**
    - **🦀 `data-audit` ([`backend/rust/src/bin/data_audit.rs`](backend/rust/src/bin/data_audit.rs)) — Kiểm định dữ liệu đa luồng (`rayon` + `sha2` + `image`):** Khai thác toàn bộ nhân CPU để kiểm tra ảnh hỏng, thống kê độ phân giải và tính SHA-256 phát hiện rò rỉ dữ liệu `train ↔ valid` trên 87.867 ảnh nhanh hơn nhiều lần so với Python đơn luồng.
    - **🦀 `plant-disease-api` ([`backend/rust/src/main.rs`](backend/rust/src/main.rs)) — Serving API hiệu năng cao (`axum` + `ort` + `image`):** Giải mã & resize ảnh bằng native Rust (không có Python GIL), chạy trực tiếp model `.onnx` (FP32/INT8) với `GraphOptimizationLevel::Level3`, tiêu thụ RAM rất thấp và **giữ nguyên 100% JSON contract** của FastAPI (`/health`, `/predict`) nên Frontend Streamlit cắm vào chạy ngay không cần sửa code.
 
 ### 4.4. Danh sách Thí nghiệm & Kết quả
 
-#### Bảng tổng hợp thí nghiệm
+#### A. So sánh các Thí nghiệm Huấn luyện Mô hình
 
-| ID | Mô hình / Cấu hình | Kỹ thuật chính | Val Acc | **Val Macro-F1** | **Test (33 ảnh)** | Kích thước | Latency 1 ảnh (Colab / M2) | Trạng thái / Ghi chú |
-|---|---|---|---:|---:|---:|---:|---:|---|
-| **EXP-01** | `SimplePlantCNN` (Baseline 1) | 4 khối Conv+BN+ReLU+MaxPool, train từ đầu | — | *(baseline)* | — | `1.6 MB` | — | Đã có checkpoint ([`models/baseline1_simple_cnn.pth`](models/baseline1_simple_cnn.pth)) |
-| **EXP-02** | `ConvNeXt-Tiny` (Phase 1) | Transfer Learning, đóng băng backbone, 2 epochs | 98.32% | **98.30%** | — | `106.24 MB` | — | Warmup head trên Colab T4 |
-| **EXP-03 ⭐** | **`ConvNeXt-Tiny` (Phase 2)** | **Full Fine-tuning (8 epochs), Diff LR, Label Smoothing, AMP** | **99.95%** | **99.95%** | **33/33 (100%)\*** | `106.24 MB` | `0.26 ms` (T4 batch 64) / `173.0 ms` (Colab CPU) | **Model chủ lực (Best Accuracy)** |
-| **EXP-04** | `ConvNeXt-Tiny` (ONNX FP32) | Export ONNX `opset 17`, parity `1.07e-06` | **99.95%\*** | **99.95%\*** | **33/33 (100%)** (`avg conf 90.74%`) | `106.3 MB` | `118.9 ms` (Colab CPU · 1.46x) / **`39.97 ms`** (M2 CPU) | Nhanh nhất trên CPU Intel cũ không có VNNI |
-| **EXP-05 ⭐** | **`ConvNeXt-Tiny` (ONNX INT8)** | Dynamic `QUInt8` (`MatMul`/`Gemm`), Cosine Sim `0.9992` | `100.00%`† | `100.00%`† | **33/33 (100%)** (`avg conf 90.79%`) | **`32.3 MB`** (**−3.29x**) | `151.1 ms` (Colab Xeon) / **`23.81 ms`** (**M2 CPU · 42 FPS**) | **Tối ưu nhất cho Deploy & Apple Silicon** ([`models/convnext_tiny_khoi_int8.onnx`](models/convnext_tiny_khoi_int8.onnx)) |
-| **EXP-06** | `ConvNeXt-Tiny` (ONNX Static INT8) | `QDQ` + `quant_pre_process` + Calibration 150 ảnh | *(sẵn sàng)* | *(sẵn sàng)* | *(chạy `--mode static`)* | *(~30 MB)* | *(tối ưu CPU VNNI)* | Tích hợp sẵn trong `scripts/quantize_onnx.py` |
-| **EXP-07** | Rust Serving (`axum` + `ort`) | Native image decode + ONNX Runtime (không GIL) | *(như ONNX)* | *(như ONNX)* | *(như ONNX)* | Binary + ONNX | *(đo sau khi cài Rust)* | Sẵn sàng build (`backend/rust/`) |
+| ID | Mô hình / Giai đoạn | Kỹ thuật chính | Val Acc | **Val Macro-F1** | **Test (33 ảnh)** | Dung lượng |
+|---|---|---|---:|---:|---:|---:|
+| **EXP-01** | `SimplePlantCNN` (Baseline 1) | 4 khối Conv+BN+ReLU+MaxPool, train từ đầu | — | *(baseline)* | — | `1.6 MB` |
+| **EXP-02** | `ConvNeXt-Tiny` (Phase 1) | Transfer Learning, đóng băng backbone (2 epochs) | 98.32% | **98.30%** | — | `106.2 MB` |
+| **EXP-03 ⭐** | **`ConvNeXt-Tiny` (Phase 2)** | **Full Fine-tuning (8 epochs), Diff LR, Label Smoothing, AMP** | **99.95%** | **99.95%** | **33/33 (100%)** | `106.2 MB` |
 
-*\*Output ONNX FP32 khớp PyTorch với sai lệch tuyệt đối lớn nhất `1.07e-06`.*
-*†Đo trên 1.600 ảnh valid đầu (`shuffle=False`); trên tập kiểm thử độc lập `data/test`, cả ONNX FP32 và ONNX INT8 đều đạt **33/33 (100.00%)** với độ tin cậy trung bình ~90.7% (được hiệu chuẩn mượt nhờ `LabelSmoothing = 0.1`).*
+- **Kết quả chính thức từ `eval_engine.py` (EXP-03 trên 17.572 ảnh Validation, GPU Tesla T4):**
+  - **Macro F1 / Accuracy / Weighted F1 / Precision / Recall:** đều đạt **`99.95%`** (chỉ đoán sai ~9/17.572 ảnh trên 38 lớp).
+  - **GPU Latency / Throughput:** **`0.26 ms/ảnh`** — **`3,814.9 FPS`** (`27,849,350` tham số).
+  - **Tập kiểm thử độc lập `data/test`:** cả **ONNX FP32** (`avg conf 90.74%`) và **ONNX INT8** (`avg conf 90.79%`) đều đạt **`33/33 (100.00%)`** (ONNX FP32 khớp PyTorch với sai lệch `1.07e-06`; INT8 có `Cosine Sim = 0.9992`).
 
-#### So sánh hiệu năng Serving giữa các phần cứng (1 ảnh lẻ `224×224`, 30 lần chạy sau warmup)
+#### B. Benchmark Tối ưu Triển khai & Phần cứng cho Model Thắng cuộc (`EXP-03`, 1 ảnh lẻ `224×224`)
 
-| Phần cứng & Runtime | Định dạng | Dung lượng | Avg Latency | p50 | p95 | Throughput | Nhận xét & Lý do kỹ thuật |
-|---|---|---:|---:|---:|---:|---:|---|
-| **Apple M2 CPU (ARM64)** — ORT | **ONNX Dynamic INT8** | **`32.3 MB`** | **`23.81 ms`** | `23.74 ms` | `24.19 ms` | **`42.0 FPS`** | **Nhanh nhất (gấp 1.68x FP32, 7.3x PyTorch Colab)** nhờ tập lệnh INT8 gốc `ARM DotProd/i8mm` + giảm 3.29x băng thông RAM |
-| **Apple M2 CPU (ARM64)** — ORT | ONNX FP32 | `106.3 MB` | `39.97 ms` | `39.28 ms` | `42.71 ms` | `25.0 FPS` | Nhanh gấp ~3x so với CPU ảo của Colab |
-| **Apple M2 CoreML/ANE** — ORT | ONNX FP32 | `106.3 MB` | `99.16 ms` | `93.26 ms` | `121.53 ms` | `10.1 FPS` | Chậm hơn CPU thuần vì đồ thị `ConvNeXt` bị cắt thành **60 phân mảnh nhỏ** (`213/290` nodes) qua lại CoreML ↔ CPU |
-| **Colab 2-vCPU (Intel Xeon cũ)** — ORT | ONNX FP32 | `106.3 MB` | `118.9 ms` | — | — | `8.4 FPS` | Nhanh hơn PyTorch CPU (`1.46x`), tốt nhất trên CPU không có VNNI |
-| **Colab 2-vCPU (Intel Xeon cũ)** — ORT | ONNX Dynamic INT8 | `32.3 MB` | `151.1 ms` | — | — | `6.6 FPS` | Chậm hơn FP32 (`0.75x`) do Xeon cũ thiếu `AVX-512 VNNI` và phải gánh overhead `DynamicQuantizeLinear` |
-| **Colab 2-vCPU (Intel Xeon cũ)** — PyTorch | PyTorch FP32 | `106.24 MB` | `173.0 ms` | — | — | `5.8 FPS` | Baseline CPU trước khi tối ưu ONNX |
+| Phần cứng & Runtime | Định dạng | Dung lượng | Avg Latency | p50 / p95 | Throughput | Nhận xét & Lý do kỹ thuật |
+|---|---|---:|---:|---:|---:|---|
+| **🏆 Apple M2 CPU (ARM64)** — ORT | **ONNX Dynamic INT8** | **`32.3 MB`** (**−3.29x**) | **`23.81 ms`** | `23.74 / 24.19 ms` | **`42.0 FPS`** | **Nhanh nhất & nhẹ nhất** (nhanh hơn FP32 `1.68x`, PyTorch Colab `7.3x`) nhờ tập lệnh INT8 gốc `ARM DotProd/i8mm` + giảm 3.29x băng thông RAM |
+| **Apple M2 CPU (ARM64)** — ORT | ONNX FP32 | `106.3 MB` | `39.97 ms` | `39.28 / 42.71 ms` | `25.0 FPS` | Nhanh gấp ~3x so với CPU ảo của Colab |
+| **Apple M2 CoreML/ANE** — ORT | ONNX FP32 | `106.3 MB` | `99.16 ms` | `93.26 / 121.53 ms` | `10.1 FPS` | Chậm hơn CPU thuần vì `ConvNeXt` bị cắt thành **60 phân mảnh nhỏ** (`213/290` nodes) qua lại CoreML ↔ CPU |
+| **Colab 2-vCPU (Xeon cũ)** — ORT | ONNX FP32 | `106.3 MB` | `118.9 ms` | — | `8.4 FPS` | Nhanh hơn PyTorch CPU (`1.46x`), tối ưu nhất trên CPU cũ không có VNNI |
+| **Colab 2-vCPU (Xeon cũ)** — ORT | ONNX Dynamic INT8 | `32.3 MB` | `151.1 ms` | — | `6.6 FPS` | Chậm hơn FP32 (`0.75x`) do Xeon cũ thiếu `AVX-512 VNNI` và chịu overhead `DynamicQuantizeLinear` |
+| **Colab 2-vCPU (Xeon cũ)** — PyTorch | PyTorch FP32 | `106.2 MB` | `173.0 ms` | — | `5.8 FPS` | Baseline CPU trước khi tối ưu ONNX |
 
-*(Chi phí giải mã JPEG + resize `224×224` + chuẩn hóa ImageNet trên Apple M2 chỉ tốn **`1.28 ms`** → tổng thời gian End-to-End cho 1 request ảnh với ONNX INT8 trên Apple M2 là **`~25.1 ms`**.)*
-
-#### Kết quả chính thức từ `eval_engine.py` (EXP-03 trên toàn bộ 17.572 ảnh Validation, GPU Tesla T4)
-- **Macro F1-Score:** **`99.95%`** | **Accuracy:** **`99.95%`** | **Weighted F1:** **`99.95%`**
-- **Macro Precision / Recall:** **`99.95% / 99.95%`** (chỉ đoán nhầm ~9 ảnh / 17.572 ảnh trên 38 lớp)
-- **GPU Latency / Throughput:** **`0.26 ms/ảnh`** — **`3,814.9 FPS`** | **Tham số:** `27,849,350` (`106.24 MB`)
+*(Chi phí giải mã JPEG + resize `224×224` + chuẩn hóa ImageNet trên Apple M2 chỉ **`1.28 ms`** → tổng End-to-End với ONNX INT8 là **`~25.1 ms`**. Ngoài ra repo đã sẵn sàng `--mode static` trong `scripts/quantize_onnx.py` và Rust API trong `backend/rust/` để mở rộng benchmark khi cần.)*
 
 #### Tiến trình huấn luyện chi tiết của EXP-03 (`ConvNeXt-Tiny` trên Colab GPU T4)
 
@@ -230,10 +226,11 @@ plant-disease-ml/
 │   ├── baseline1_simple_cnn.py       # Baseline 1: Vanilla CNN từ đầu
 │   └── 03_convnext_tiny_khoi.ipynb   # Notebook Colab T4: ConvNeXt-Tiny + ONNX + INT8
 ├── models/                           # Checkpoints (.pth), ONNX (.onnx, _int8.onnx), class_indices.json
-├── backend/                          # Tầng Serving Python (FastAPI: /health, /predict, /predict/batch)
+├── backend/                          # Tầng Serving Python (FastAPI /api/* + agronomy.py + Dockerfile)
 │   └── rust/                         # Tầng tối ưu Rust (plant-disease-api & data-audit CLI)
-├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (8 test cases)
-└── frontend/                         # Tầng Web UI (Streamlit)
+├── frontend/                         # Tầng Web UI (React + Vite + TypeScript + Tailwind CSS + Recharts)
+├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (17 test cases)
+└── run_dev.sh                        # Script khởi chạy song song Backend (:8000) & Frontend (:5173)
 ```
 
 ### Bước 1: Tải dữ liệu (nếu chưa có `data/`)
@@ -262,10 +259,15 @@ python scripts/quantize_onnx.py --mode static \
 
 ### Bước 3A: Chạy Backend Python (FastAPI — mặc định dùng ONNX INT8, không cần PyTorch)
 ```bash
+pip install -r backend/requirements-onnx.txt
 uvicorn backend.main:app --reload --port 8000
-# Swagger UI: http://localhost:8000/docs (gồm GET /health, POST /predict, POST /predict/batch)
+# Swagger UI: http://localhost:8000/docs (GET /health, /metrics · POST /predict, /predict/batch, /explain)
 # Chạy kiểm thử tự động API:
 pytest -v tests/test_api.py
+
+# Hoặc đóng gói & chạy bằng Docker siêu nhẹ (~280 MB, không PyTorch):
+docker build -f backend/Dockerfile -t plant-disease-api:onnx .
+docker run -p 8000:8000 plant-disease-api:onnx
 ```
 
 ### Bước 3B: Chạy bản tối ưu bằng Rust (Serving API & Data Audit)
@@ -280,9 +282,14 @@ MAPPING_PATH="models/class_indices.json" \
 cargo run --manifest-path backend/rust/Cargo.toml --release --bin plant-disease-api
 ```
 
-### Bước 4: Khởi động Frontend Streamlit
+### Bước 4: Khởi chạy nhanh song song Backend + Frontend React (1 lệnh duy nhất)
 ```bash
-pip install -r frontend/requirements.txt
-streamlit run frontend/app.py
-# Truy cập: http://localhost:8501
+./run_dev.sh
+# Frontend React (Vite) : http://localhost:5173
+# Backend FastAPI       : http://127.0.0.1:8000/docs
+```
+
+Hoặc chạy riêng Frontend React:
+```bash
+cd frontend && npm install && npm run dev
 ```

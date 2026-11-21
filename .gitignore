@@ -1,5 +1,7 @@
-# Dữ liệu ảnh và nén nặng (Không đưa lên Git)
-data/
+# Dữ liệu ảnh train/valid và file nén nặng (giữ lại data/test ~548KB làm ảnh mẫu cho bản deploy)
+data/*
+!data/test/
+!data/test/*
 archive.zip
 dataset.zip
 *.zip
@@ -22,6 +24,11 @@ jupyter.log
 
 # Rust build artifacts
 backend/rust/target/
+
+# Frontend React / Vite build & dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
 
 # Large model binaries (>100MB GitHub limit — lưu trên Google Drive / Release)
 models/convnext_tiny_khoi.pth
