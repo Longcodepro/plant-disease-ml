@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   BarChart3,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   FileImage,
   Leaf,
@@ -25,10 +27,72 @@ import {
 } from "../utils/format";
 import { XaiInspector } from "./XaiInspector";
 
+const ALL_PLANTS_FILTER = "Tất cả";
+
+/**
+ * Interleave samples round-robin by (plant, condition) so the initial
+ * visible strip showcases diverse crops and conditions immediately.
+ */
+function interleaveSamples(items: SampleItem[]): SampleItem[] {
+  if (items.length <= 1) return items;
+
+  const byPlant = new Map<string, Map<string, SampleItem[]>>();
+  for (const item of items) {
+    let condMap = byPlant.get(item.plant);
+    if (!condMap) {
+      condMap = new Map<string, SampleItem[]>();
+      byPlant.set(item.plant, condMap);
+    }
+    const bucket = condMap.get(item.condition) ?? [];
+    bucket.push(item);
+    condMap.set(item.condition, bucket);
+  }
+
+  const plantCondQueues = Array.from(byPlant.keys())
+    .sort((a, b) => a.localeCompare(b))
+    .map((plant) => {
+      const condMap = byPlant.get(plant)!;
+      return Array.from(condMap.keys())
+        .sort((a, b) => a.localeCompare(b))
+        .map((condition) => [...condMap.get(condition)!]);
+    });
+
+  const orderedBuckets: SampleItem[][] = [];
+  let hasMoreBuckets = true;
+  while (hasMoreBuckets) {
+    hasMoreBuckets = false;
+    for (const queues of plantCondQueues) {
+      const nextBucket = queues.shift();
+      if (nextBucket) {
+        orderedBuckets.push(nextBucket);
+        hasMoreBuckets = true;
+      }
+    }
+  }
+
+  const interleaved: SampleItem[] = [];
+  let hasMoreItems = true;
+  while (hasMoreItems) {
+    hasMoreItems = false;
+    for (const bucket of orderedBuckets) {
+      const nextItem = bucket.shift();
+      if (nextItem) {
+        interleaved.push(nextItem);
+        hasMoreItems = true;
+      }
+    }
+  }
+
+  return interleaved;
+}
+
 export function DiagnoseView() {
   const [samples, setSamples] = useState<SampleItem[]>([]);
   const [samplesLoading, setSamplesLoading] = useState<boolean>(true);
   const [samplesError, setSamplesError] = useState<string | null>(null);
+  const [selectedPlantFilter, setSelectedPlantFilter] = useState<string>(ALL_PLANTS_FILTER);
+  const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
+  const [canScrollRight, setCanScrollRight] = useState<boolean>(false);
 
   const [selectedSampleName, setSelectedSampleName] = useState<string | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
@@ -40,6 +104,7 @@ export function DiagnoseView() {
   const [result, setResult] = useState<PredictApiResponse | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sampleStripRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const objectUrlRef = useRef<string | null>(null);
 
@@ -141,6 +206,58 @@ export function DiagnoseView() {
     handleFileSelected(droppedFile);
   };
 
+  const plantOptions = useMemo(() => {
+    const uniquePlants = Array.from(new Set(samples.map((s) => s.plant))).sort((a, b) =>
+      a.localeCompare(b),
+    );
+    return [ALL_PLANTS_FILTER, ...uniquePlants];
+  }, [samples]);
+
+  const activePlantFilter = plantOptions.includes(selectedPlantFilter)
+    ? selectedPlantFilter
+    : ALL_PLANTS_FILTER;
+
+  const displayedSamples = useMemo(() => {
+    if (activePlantFilter === ALL_PLANTS_FILTER) {
+      return interleaveSamples(samples);
+    }
+    return samples.filter((s) => s.plant === activePlantFilter);
+  }, [samples, activePlantFilter]);
+
+  const updateScrollButtons = useCallback(() => {
+    const el = sampleStripRef.current;
+    if (!el) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = sampleStripRef.current;
+    if (el) {
+      el.scrollLeft = 0;
+    }
+    const rafId = window.requestAnimationFrame(updateScrollButtons);
+    window.addEventListener("resize", updateScrollButtons);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", updateScrollButtons);
+    };
+  }, [displayedSamples, samplesLoading, updateScrollButtons]);
+
+  const scrollSampleStrip = (direction: "left" | "right") => {
+    const el = sampleStripRef.current;
+    if (!el) return;
+    const distance = Math.max(220, Math.round(el.clientWidth * 0.72));
+    el.scrollBy({
+      left: direction === "left" ? -distance : distance,
+      behavior: "smooth",
+    });
+  };
+
   const originalSrc = isPredicting
     ? localPreviewUrl
     : toImageDataUri(result?.original_image_base64) || localPreviewUrl;
@@ -217,24 +334,75 @@ export function DiagnoseView() {
 
         {/* Horizontal Sample Strip */}
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-7">
-          <div className="mb-2.5 flex items-center justify-between gap-2">
+          <div className="mb-2 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Leaf className="h-4 w-4 text-emerald-600" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Thư viện ảnh mẫu nhanh ({samples.length})
+                Thư viện ảnh mẫu nhanh ({displayedSamples.length})
               </h2>
             </div>
-            {samplesError && (
-              <button
-                type="button"
-                onClick={() => void loadSamples()}
-                className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
-              >
-                <RefreshCw className="h-3 w-3" />
-                Thử lại
-              </button>
-            )}
+            <div className="flex items-center gap-1.5">
+              {samplesError && (
+                <button
+                  type="button"
+                  onClick={() => void loadSamples()}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Thử lại
+                </button>
+              )}
+              {!samplesLoading && !samplesError && displayedSamples.length > 0 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => scrollSampleStrip("left")}
+                    disabled={!canScrollLeft}
+                    aria-label="Cuộn danh sách mẫu sang trái"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollSampleStrip("right")}
+                    disabled={!canScrollRight}
+                    aria-label="Cuộn danh sách mẫu sang phải"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Plant Filter Chips */}
+          {!samplesLoading && !samplesError && plantOptions.length > 1 && (
+            <div
+              role="group"
+              aria-label="Lọc ảnh mẫu theo loại cây"
+              className="thin-scrollbar mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-0.5"
+            >
+              {plantOptions.map((plant) => {
+                const isSelected = activePlantFilter === plant;
+                return (
+                  <button
+                    key={plant}
+                    type="button"
+                    onClick={() => setSelectedPlantFilter(plant)}
+                    className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold transition-all ${
+                      isSelected
+                        ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-emerald-300 hover:bg-emerald-50/60 hover:text-emerald-800"
+                    }`}
+                  >
+                    {plant}
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {samplesLoading ? (
             <div className="flex gap-2.5 overflow-hidden">
@@ -249,47 +417,59 @@ export function DiagnoseView() {
             <div className="rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2 text-xs text-rose-700">
               {samplesError}
             </div>
-          ) : samples.length === 0 ? (
+          ) : displayedSamples.length === 0 ? (
             <p className="py-3 text-xs text-slate-500">Không có ảnh mẫu khả dụng trên máy chủ.</p>
           ) : (
-            <div className="thin-scrollbar flex gap-2.5 overflow-x-auto pb-1">
-              {samples.map((sample) => {
-                const active = selectedSampleName === sample.filename;
-                return (
-                  <button
-                    key={sample.filename}
-                    type="button"
-                    onClick={() => handleSampleClick(sample)}
-                    className={`group flex shrink-0 items-center gap-2.5 rounded-xl border p-1.5 pr-3 text-left transition-all ${
-                      active
-                        ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20"
-                        : "border-slate-200 bg-slate-50/50 hover:border-emerald-300 hover:bg-white"
-                    }`}
-                  >
-                    <img
-                      src={resolveApiUrl(sample.url)}
-                      alt={`${sample.plant} ${sample.condition}`}
-                      loading="lazy"
-                      className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-slate-200/80"
-                    />
-                    <div className="max-w-[132px]">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            sample.is_healthy ? "bg-emerald-500" : "bg-amber-500"
-                          }`}
-                        />
-                        <span className="truncate text-xs font-bold text-slate-900">
-                          {sample.plant}
-                        </span>
+            <div className="relative">
+              <div
+                ref={sampleStripRef}
+                onScroll={updateScrollButtons}
+                className="thin-scrollbar flex gap-2.5 overflow-x-auto pb-1 pr-2 scroll-smooth"
+              >
+                {displayedSamples.map((sample) => {
+                  const active = selectedSampleName === sample.filename;
+                  return (
+                    <button
+                      key={sample.filename}
+                      type="button"
+                      onClick={() => handleSampleClick(sample)}
+                      className={`group flex shrink-0 items-center gap-2.5 rounded-xl border p-1.5 pr-3 text-left transition-all ${
+                        active
+                          ? "border-emerald-500 bg-emerald-50/60 ring-2 ring-emerald-500/20"
+                          : "border-slate-200 bg-slate-50/50 hover:border-emerald-300 hover:bg-white"
+                      }`}
+                    >
+                      <img
+                        src={resolveApiUrl(sample.url)}
+                        alt={`${sample.plant} ${sample.condition}`}
+                        loading="lazy"
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-slate-200/80"
+                      />
+                      <div className="max-w-[132px]">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              sample.is_healthy ? "bg-emerald-500" : "bg-amber-500"
+                            }`}
+                          />
+                          <span className="truncate text-xs font-bold text-slate-900">
+                            {sample.plant}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                          {sample.condition}
+                        </p>
                       </div>
-                      <p className="mt-0.5 truncate text-[11px] text-slate-500">
-                        {sample.condition}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
+              {canScrollRight && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute top-0 right-0 bottom-1 w-12 bg-gradient-to-l from-white to-transparent"
+                />
+              )}
             </div>
           )}
         </div>
@@ -445,8 +625,15 @@ export function DiagnoseView() {
                       Thời gian xử lý
                     </span>
                     <p className="mt-0.5 font-mono text-2xl font-bold tracking-tight text-slate-900">
-                      {formatMs(result.inference_time_ms)}
+                      {result.cache_hit
+                        ? `${result.inference_time_ms.toFixed(2)} ms`
+                        : formatMs(result.inference_time_ms)}
                     </p>
+                    {result.cache_hit && (
+                      <p className="mt-1 text-[10px] font-medium leading-snug text-sky-700">
+                        Phản hồi từ bộ nhớ đệm (Inference gốc: ~24 ms)
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -507,6 +694,24 @@ export function DiagnoseView() {
                     );
                   })}
                 </div>
+
+                {(() => {
+                  const top3Items = result.top_3.slice(0, 3);
+                  const sumTop3Pct = top3Items.reduce(
+                    (acc, item) => acc + toPercentNumber(item.confidence),
+                    0,
+                  );
+                  const remainingClasses = Math.max(0, 38 - top3Items.length);
+                  const remainingPct = Math.max(0, 100 - sumTop3Pct);
+                  return (
+                    <div className="mt-3.5 flex items-center justify-between border-t border-slate-100 pt-2.5 text-[11px] text-slate-500">
+                      <span>{remainingClasses} lớp còn lại</span>
+                      <span className="font-mono font-semibold text-slate-600">
+                        {remainingPct.toFixed(2)}%
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Card 3: Agronomic Advisory Card */}

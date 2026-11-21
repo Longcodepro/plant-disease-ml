@@ -155,7 +155,7 @@ export function Navbar({
             <div
               role="dialog"
               aria-label="Thông tin mô hình AI"
-              className="absolute right-0 mt-2 w-80 origin-top-right rounded-2xl border border-slate-200 bg-white p-4 shadow-xl shadow-slate-900/10 sm:w-96"
+              className="absolute right-0 mt-2 w-[390px] max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xl shadow-slate-900/15 ring-1 ring-slate-900/5"
             >
               <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
@@ -202,13 +202,34 @@ export function Navbar({
                     <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
                       <span className="text-[11px] font-medium text-slate-500">Val Macro-F1</span>
                       <p className="mt-0.5 font-mono text-sm font-bold text-emerald-700">
-                        {formatConfidence(modelInfo.val_macro_f1)}
+                        {(
+                          modelInfo.val_macro_f1 > 1
+                            ? modelInfo.val_macro_f1
+                            : modelInfo.val_macro_f1 * 100
+                        ).toFixed(2)}
+                        %
+                      </p>
+                      <p className="mt-0.5 text-[10px] font-medium text-slate-500">
+                        17.572 ảnh · 38 lớp Validation
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
                       <span className="text-[11px] font-medium text-slate-500">Test Accuracy</span>
                       <p className="mt-0.5 font-mono text-sm font-bold text-slate-900">
-                        {formatConfidence(modelInfo.test_accuracy)}
+                        {Math.round(
+                          (modelInfo.test_accuracy > 1
+                            ? modelInfo.test_accuracy / 100
+                            : modelInfo.test_accuracy) * 33,
+                        )}
+                        /33 mẫu
+                      </p>
+                      <p className="mt-0.5 text-[10px] font-medium text-slate-500">
+                        {Math.round(
+                          modelInfo.test_accuracy > 1
+                            ? modelInfo.test_accuracy
+                            : modelInfo.test_accuracy * 100,
+                        )}
+                        % · Tập test độc lập
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-2.5">
@@ -226,27 +247,33 @@ export function Navbar({
                   </div>
 
                   <dl className="space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Kiến trúc</dt>
-                      <dd className="font-mono font-medium text-slate-800">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="whitespace-nowrap shrink-0 text-slate-500">Kiến trúc</dt>
+                      <dd className="text-right font-mono font-medium text-slate-800">
                         {modelInfo.architecture}
                       </dd>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Runtime / Thiết bị</dt>
-                      <dd className="font-mono font-medium text-slate-800">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="whitespace-nowrap shrink-0 text-slate-500">
+                        Runtime / Thiết bị
+                      </dt>
+                      <dd className="text-right font-mono font-medium text-slate-800">
                         {modelInfo.backend_type} · {modelInfo.device}
                       </dd>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Phương pháp XAI</dt>
-                      <dd className="font-mono font-medium text-emerald-700">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="whitespace-nowrap shrink-0 text-slate-500">
+                        Phương pháp XAI
+                      </dt>
+                      <dd className="text-right font-mono font-medium text-emerald-700">
                         {modelInfo.xai_method}
                       </dd>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-slate-500">Ngưỡng tin cậy</dt>
-                      <dd className="font-mono font-medium text-slate-800">
+                    <div className="flex items-center justify-between gap-3">
+                      <dt className="whitespace-nowrap shrink-0 text-slate-500">
+                        Ngưỡng tin cậy
+                      </dt>
+                      <dd className="text-right font-mono font-medium text-slate-800">
                         {formatConfidence(modelInfo.confidence_threshold)}
                       </dd>
                     </div>

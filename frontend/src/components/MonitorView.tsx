@@ -16,6 +16,7 @@ import {
   BarChart,
   CartesianGrid,
   ComposedChart,
+  LabelList,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -75,12 +76,18 @@ function HistoryTooltip({
       </p>
       <div className="space-y-1 font-mono text-xs">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Latency:</span>
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <span className="h-2 w-2 rounded-full bg-[#059669]" />
+            Latency:
+          </span>
           <span className="font-bold text-emerald-700">{point.latencyMs.toFixed(1)} ms</span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-500">Độ tin cậy:</span>
-          <span className="font-bold text-slate-900">{point.confidencePct.toFixed(1)}%</span>
+          <span className="flex items-center gap-1.5 text-slate-500">
+            <span className="h-2 w-2 rounded-full bg-[#2563eb]" />
+            Độ tin cậy:
+          </span>
+          <span className="font-bold text-[#2563eb]">{point.confidencePct.toFixed(1)}%</span>
         </div>
       </div>
     </div>
@@ -360,7 +367,7 @@ export function MonitorView() {
                       <BarChart
                         data={classDistribution}
                         layout="vertical"
-                        margin={{ top: 4, right: 20, left: 4, bottom: 4 }}
+                        margin={{ top: 4, right: 36, left: 4, bottom: 4 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
                         <XAxis
@@ -387,7 +394,19 @@ export function MonitorView() {
                           barSize={24}
                           radius={[0, 6, 6, 0]}
                           fill="#059669"
-                        />
+                        >
+                          <LabelList
+                            dataKey="count"
+                            position="right"
+                            offset={8}
+                            style={{
+                              fill: "#334155",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              fontFamily: "JetBrains Mono, monospace",
+                            }}
+                          />
+                        </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -403,14 +422,14 @@ export function MonitorView() {
                       Biến động Latency (ms) &amp; Độ tin cậy (%)
                     </h2>
                   </div>
-                  <div className="flex items-center gap-3 text-[11px] font-semibold">
+                  <div className="flex items-center gap-4 text-[11px] font-semibold">
                     <span className="flex items-center gap-1.5 text-emerald-700">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-emerald-500/30 ring-1 ring-emerald-600" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#059669]" />
                       Latency (ms)
                     </span>
-                    <span className="flex items-center gap-1.5 text-slate-700">
-                      <span className="h-0.5 w-3 bg-slate-800" />
-                      Confidence (%)
+                    <span className="flex items-center gap-1.5 text-[#2563eb]">
+                      <span className="h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
+                      Độ tin cậy (%)
                     </span>
                   </div>
                 </div>
@@ -447,6 +466,7 @@ export function MonitorView() {
                         />
                         <YAxis
                           yAxisId="left"
+                          padding={{ top: 10, bottom: 4 }}
                           tick={{ fill: "#059669", fontSize: 11, fontFamily: "JetBrains Mono" }}
                           axisLine={false}
                           tickLine={false}
@@ -457,11 +477,13 @@ export function MonitorView() {
                           yAxisId="right"
                           orientation="right"
                           domain={[0, 100]}
-                          tick={{ fill: "#475569", fontSize: 11, fontFamily: "JetBrains Mono" }}
+                          ticks={[0, 25, 50, 75, 100]}
+                          padding={{ top: 10, bottom: 4 }}
+                          tick={{ fill: "#2563eb", fontSize: 11, fontFamily: "JetBrains Mono" }}
                           axisLine={false}
                           tickLine={false}
                           unit="%"
-                          width={46}
+                          width={48}
                         />
                         <Tooltip content={<HistoryTooltip />} />
                         <Area
@@ -471,15 +493,17 @@ export function MonitorView() {
                           stroke="#059669"
                           strokeWidth={2}
                           fill="url(#latencyGradient)"
+                          dot={{ r: 4, stroke: "#059669", strokeWidth: 2, fill: "#ffffff" }}
+                          activeDot={{ r: 6, stroke: "#059669", strokeWidth: 2, fill: "#ffffff" }}
                         />
                         <Line
                           yAxisId="right"
                           type="monotone"
                           dataKey="confidencePct"
-                          stroke="#0F172A"
+                          stroke="#2563eb"
                           strokeWidth={2}
-                          dot={{ r: 3, fill: "#0F172A", strokeWidth: 0 }}
-                          activeDot={{ r: 5 }}
+                          dot={{ r: 4, stroke: "#2563eb", strokeWidth: 2, fill: "#ffffff" }}
+                          activeDot={{ r: 6, stroke: "#2563eb", strokeWidth: 2, fill: "#ffffff" }}
                         />
                       </ComposedChart>
                     </ResponsiveContainer>
