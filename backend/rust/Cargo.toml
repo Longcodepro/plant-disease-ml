@@ -1,0 +1,39 @@
+[package]
+name = "plant-disease-rust"
+version = "1.0.0"
+edition = "2021"
+description = "High-performance Rust ONNX Inference API & Parallel Dataset Auditor for Plant Disease ML"
+
+[[bin]]
+name = "plant-disease-api"
+path = "src/main.rs"
+
+[[bin]]
+name = "data-audit"
+path = "src/bin/data_audit.rs"
+
+[dependencies]
+# Web server & async runtime (API tầng Serving thay thế/chạy song song FastAPI)
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors"] }
+
+# ONNX Runtime native binding (hỗ trợ cả FP32 & INT8 ONNX)
+ort = "=2.0.0-rc.9"
+
+# Giải mã & tiền xử lý ảnh native (không qua Python GIL)
+image = "0.25"
+
+# Serialization & dữ liệu
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Quét & kiểm định dữ liệu đa luồng (data-audit CLI)
+rayon = "1.10"
+walkdir = "2.5"
+sha2 = "0.10"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
