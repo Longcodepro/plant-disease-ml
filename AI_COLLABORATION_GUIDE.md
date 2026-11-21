@@ -48,7 +48,37 @@ Khi huấn luyện xong mô hình tốt nhất của bạn, hãy lưu checkpoint
 
 ---
 
-## 3. CẤU TRÚC REPOSITORY (DECOUPLED ARCHITECTURE)
+## 3. CÁC MODULE DÙNG CHUNG ĐÃ ĐƯỢC CHUẨN HÓA SẴN (BẮT BUỘC SỬ DỤNG)
+
+Để đảm bảo tính công bằng tuyệt đối khi so sánh mô hình giữa các thành viên:
+
+### 3.1. Dùng chung Data Pipeline (`notebooks/data_pipeline.py`)
+Mọi thành viên **không tự viết lại hàm load dữ liệu**, hãy import trực tiếp:
+```python
+from notebooks.data_pipeline import build_dataloaders
+
+train_loader, valid_loader, idx_to_class, class_weights = build_dataloaders(
+    data_dir="data",
+    batch_size=64
+)
+```
+
+### 3.2. Dùng chung Tiêu Chí Đánh Giá (`notebooks/eval_engine.py`)
+Sau khi huấn luyện xong mỗi epoch hoặc đánh giá mô hình cuối cùng, hãy gọi hàm đánh giá chuẩn dùng chung:
+```python
+from notebooks.eval_engine import evaluate_model, print_evaluation_summary
+
+# Đánh giá toàn diện trên tập Validation:
+metrics = evaluate_model(model, valid_loader, device=device)
+
+# In bảng tổng kết đẹp mắt:
+print_evaluation_summary(metrics, model_name="ResNet50_Nam")
+```
+**Các tiêu chí chuẩn được đo tự động:**
+* **`macro_f1` (Tiêu chí quyết định thắng cuộc):** Trung bình F1 của 38 lớp, đảm bảo không bị bias vào lớp nhiều ảnh.
+* **`accuracy`:** Độ chính xác tổng quát.
+* **`latency_per_image_ms`:** Độ trễ khi dự đoán 1 bức ảnh (mili-giây), tiêu chí quan trọng để đưa vào API.
+* **`model_size_mb`:** Dung lượng mô hình khi lưu trữ.
 ```text
 plant-disease-ml/
 ├── data/                 # Chứa dữ liệu train/valid/test (bị ignore trên Git)
