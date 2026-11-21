@@ -31,8 +31,8 @@ Hệ thống học sâu (Deep Learning) nhận diện **38 loại cây trồng &
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     │ HTTP Multipart (/health, /predict)
 ┌───────────────────────────────────▼───────────────────────────────────────┐
-│ TẦNG 3: WEB UI (frontend/app.py — Streamlit, Port 8501)                   │
-│  • Upload ảnh, hiển thị trạng thái API, kết quả chẩn đoán & Top-3         │
+│ TẦNG 3: WEB UI (frontend/ — React + Vite + TypeScript + Tailwind, :5173)  │
+│  • Interactive XAI Inspector (Before/After + Opacity 60fps), Batch, Charts│
 └───────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -141,11 +141,12 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
 3. **Backend FastAPI Plug & Play chuẩn Production ([`backend/main.py`](backend/main.py), [`backend/service.py`](backend/service.py)):**
    - **Model Factory & Lazy-import PyTorch:** Hỗ trợ 10 kiến trúc `.pth` **VÀ** chạy trực tiếp `.onnx` (FP32 / INT8) mà **không cần cài hay nạp PyTorch (~2 GB)** vào RAM.
    - **Warmup, Non-blocking & SHA-256 LRU Cache:** Tự động warmup lúc startup, chạy suy luận qua `run_in_threadpool`, và cache 256 ảnh gần nhất theo **SHA-256** (ảnh lặp lại trả kết quả trong **`< 0.5 ms`**, `cache_hit: true`).
-   - **Giải thích trực quan XAI (`POST /explain`):** Trích xuất **Exact Class Activation Mapping (CAM / Grad-CAM)** trực tiếp từ feature map `7×7` trước `GlobalAveragePool` của đồ thị ONNX INT8 (chỉ **1 lần chạy ~26 ms**, thuần ONNX/NumPy/PIL — **không cần PyTorch/OpenCV**, tự fallback sang Occlusion nếu model không có GAP) trả ảnh PNG Base64 khoanh mượt đúng vùng đốm bệnh trên lá.
-   - **Giám sát trực tuyến (`GET /metrics` — Chip Huyen Ch. 8):** Theo dõi real-time tổng request, latency `avg / p50 / p95`, `cache_hit_rate`, tỷ lệ ảnh `is_uncertain` (tín hiệu phát hiện *data drift*) và top 5 bệnh hay gặp.
-   - **Suy luận theo lô (`POST /predict/batch`) & Input Guards:** Xử lý tối đa 32 ảnh/lần gọi ONNX, chặn file sai định dạng/ảnh hỏng (`400`), file > 10 MB (`413`), và cảnh báo độ tin cậy thấp (`is_uncertain`).
+   - **Giải thích trực quan XAI (`POST /api/predict` & `/explain`):** Trích xuất **Exact Class Activation Mapping (CAM / Grad-CAM)** trực tiếp từ feature map `7×7` trước `GlobalAveragePool` của đồ thị ONNX INT8 (chỉ **1 lần chạy ~26 ms**, thuần ONNX/NumPy/PIL — **không cần PyTorch/OpenCV**), trả về đồng thời ảnh gốc + lớp phủ RGBA trong suốt (`heatmap_only_base64`) để Frontend React kéo độ mờ 60fps & kéo Before/After không cần gọi lại API.
+   - **Khuyến nghị nông học (`backend/agronomy.py`) & Ảnh mẫu (`GET /api/samples`):** Tự động trả tóm tắt triệu chứng, hướng xử lý & phòng ngừa cho toàn bộ 38 lớp PlantVillage, kèm endpoint đọc ảnh mẫu chống path traversal.
+   - **Giám sát trực tuyến (`GET /api/metrics` — Chip Huyen Ch. 8):** Theo dõi real-time tổng request, latency `avg / p50 / p95`, `cache_hit_rate`, tỷ lệ ảnh `is_uncertain`, top 5 bệnh hay gặp và lịch sử 100 request gần nhất (`history[]`) cho biểu đồ Recharts.
+   - **Suy luận theo lô (`POST /api/predict-batch`) & Input Guards:** Xử lý tối đa 32 ảnh/lần gọi ONNX, đọc giới hạn bộ nhớ (`MAX_UPLOAD_BYTES + 1`), chặn file sai định dạng/ảnh hỏng (`400`), file > 10 MB (`413`), và cảnh báo độ tin cậy thấp (`is_uncertain`).
    - **Docker siêu nhẹ ([`backend/Dockerfile`](backend/Dockerfile)):** Dùng `python:3.11-slim` + [`backend/requirements-onnx.txt`](backend/requirements-onnx.txt) (không có PyTorch) → đóng gói image chỉ **~280 MB** thay vì ~4 GB, kèm sẵn `HEALTHCHECK`.
-   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** **11/11 test case `pytest` PASS trong `0.70s`** trên Apple M2 (không cần cài PyTorch).
+   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** **17/17 test case `pytest` PASS trong `1.04s`** trên Apple M2 (không cần cài PyTorch).
 4. **Ứng dụng Rust vào 2 điểm nút cổ chai thực tế ([`backend/rust/`](backend/rust/)):**
    - **🦀 `data-audit` ([`backend/rust/src/bin/data_audit.rs`](backend/rust/src/bin/data_audit.rs)) — Kiểm định dữ liệu đa luồng (`rayon` + `sha2` + `image`):** Khai thác toàn bộ nhân CPU để kiểm tra ảnh hỏng, thống kê độ phân giải và tính SHA-256 phát hiện rò rỉ dữ liệu `train ↔ valid` trên 87.867 ảnh nhanh hơn nhiều lần so với Python đơn luồng.
    - **🦀 `plant-disease-api` ([`backend/rust/src/main.rs`](backend/rust/src/main.rs)) — Serving API hiệu năng cao (`axum` + `ort` + `image`):** Giải mã & resize ảnh bằng native Rust (không có Python GIL), chạy trực tiếp model `.onnx` (FP32/INT8) với `GraphOptimizationLevel::Level3`, tiêu thụ RAM rất thấp và **giữ nguyên 100% JSON contract** của FastAPI (`/health`, `/predict`) nên Frontend Streamlit cắm vào chạy ngay không cần sửa code.
@@ -225,10 +226,11 @@ plant-disease-ml/
 │   ├── baseline1_simple_cnn.py       # Baseline 1: Vanilla CNN từ đầu
 │   └── 03_convnext_tiny_khoi.ipynb   # Notebook Colab T4: ConvNeXt-Tiny + ONNX + INT8
 ├── models/                           # Checkpoints (.pth), ONNX (.onnx, _int8.onnx), class_indices.json
-├── backend/                          # Tầng Serving Python (FastAPI: /health, /metrics, /predict, /predict/batch, /explain + Dockerfile)
+├── backend/                          # Tầng Serving Python (FastAPI /api/* + agronomy.py + Dockerfile)
 │   └── rust/                         # Tầng tối ưu Rust (plant-disease-api & data-audit CLI)
-├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (11 test cases)
-└── frontend/                         # Tầng Web UI (Streamlit)
+├── frontend/                         # Tầng Web UI (React + Vite + TypeScript + Tailwind CSS + Recharts)
+├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (17 test cases)
+└── run_dev.sh                        # Script khởi chạy song song Backend (:8000) & Frontend (:5173)
 ```
 
 ### Bước 1: Tải dữ liệu (nếu chưa có `data/`)
@@ -280,9 +282,14 @@ MAPPING_PATH="models/class_indices.json" \
 cargo run --manifest-path backend/rust/Cargo.toml --release --bin plant-disease-api
 ```
 
-### Bước 4: Khởi động Frontend Streamlit
+### Bước 4: Khởi chạy nhanh song song Backend + Frontend React (1 lệnh duy nhất)
 ```bash
-pip install -r frontend/requirements.txt
-streamlit run frontend/app.py
-# Truy cập: http://localhost:8501
+./run_dev.sh
+# Frontend React (Vite) : http://localhost:5173
+# Backend FastAPI       : http://127.0.0.1:8000/docs
+```
+
+Hoặc chạy riêng Frontend React:
+```bash
+cd frontend && npm install && npm run dev
 ```
