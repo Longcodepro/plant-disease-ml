@@ -179,6 +179,27 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
 
 *(Chi phí giải mã JPEG + resize `224×224` + chuẩn hóa ImageNet trên Apple M2 chỉ **`1.28 ms`** → tổng End-to-End với ONNX INT8 là **`~25.1 ms`**. Ngoài ra repo đã sẵn sàng `--mode static` trong `scripts/quantize_onnx.py` và Rust API trong `backend/rust/` để mở rộng benchmark khi cần.)*
 
+### 4.5. Đánh giá Domain Shift thực tế (Lab vs Ngoài đồng ruộng) & Giải pháp thích nghi miền
+
+Để không dừng ở kết quả phòng lab (`PlantVillage` nền xám đồng nhất), dự án đã tích hợp và chạy kiểm chứng thực tế trên bộ dữ liệu ngoài trời **`PlantDoc`** ([`pratikkayal/PlantDoc-Dataset`](https://github.com/pratikkayal/PlantDoc-Dataset) — ảnh chụp tự nhiên ngoài đồng ruộng có nền đất, cỏ, ánh sáng gắt và nhiều lá chồng nhau), ánh xạ 1-1 toàn bộ **28 lớp chung** (2.336 ảnh train · 236 ảnh test) qua [`scripts/prepare_plantdoc.py`](scripts/prepare_plantdoc.py) và [`scripts/eval_domain_shift.py`](scripts/eval_domain_shift.py).
+
+#### Kết quả đo thực tế Baseline Domain Shift (`convnext_tiny_khoi_int8.onnx` trên 236 ảnh `PlantDoc Test`)
+
+| Miền dữ liệu | Số ảnh / Lớp | Top-1 Accuracy | Top-3 Accuracy | Macro F1-Score | Nhận xét thực nghiệm |
+|---|---|---:|---:|---:|---|
+| **Phòng Lab (`PlantVillage Valid`)** | 17.572 ảnh · 38 lớp | **99.95%** | ~100% | **99.95%** | Gần như tuyệt đối khi nền xám đồng nhất |
+| **Ngoài đồng ruộng (`PlantDoc Test`)** | 236 ảnh · 27 lớp | **30.93%** (`73/236`) | **54.24%** (`128/236`) | **28.22%** | Tụt mạnh do **Domain Shift** (nền tự nhiên phức tạp, ánh sáng ngoài trời, góc chụp đa dạng) |
+
+*(Báo cáo chi tiết từng lớp được lưu tại [`notebooks/eda_reports/plantdoc_domain_shift.json`](notebooks/eda_reports/plantdoc_domain_shift.json).)*
+
+**Phân tích các cặp nhầm lẫn phổ biến nhất ngoài thực tế:**
+- `Corn_(maize)___Northern_Leaf_Blight → Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot` (8 ảnh): Hai bệnh đốm/cháy lá ngô có hình thái vết khô gần giống nhau khi chụp xa dưới nắng gắt.
+- `Peach___healthy / Soybean___healthy → Blueberry___healthy` (6 + 6 ảnh) & `Strawberry___healthy → Raspberry___healthy` (6 ảnh): Lá khỏe mạnh ngoài trời có nền xanh/bóng râm làm model nhầm giữa các loài cây khác nhau.
+- `Tomato___Septoria_leaf_spot → Tomato___Early_blight` (6 ảnh): Đốm lá cà chua giai đoạn đầu dễ bị lẫn khi ảnh có nhiều lá chồng chéo.
+
+#### Giải pháp đã tích hợp sẵn: Mixed-Domain Fine-Tuning ([`notebooks/04_convnext_tiny_domain_adaptation.ipynb`](notebooks/04_convnext_tiny_domain_adaptation.ipynb))
+- **Chiến lược:** Khởi tạo từ trọng số `convnext_tiny_khoi.pth`, trộn `PlantVillage/train` (70.295 ảnh) + `PlantDoc/train` (2.336 ảnh ngoài trời **oversample 10x** để chiếm ~25% mỗi batch) kèm **Field-Robust Augmentations** (`RandomPerspective`, `RandomRotation(25°)`, `ColorJitter(0.25)`, `RandomErasing(0.25)`), fine-tune 6 epochs với `lr = 5e-5` và chấm song song trên cả Lab lẫn PlantDoc Test.
+
 #### Tiến trình huấn luyện chi tiết của EXP-03 (`ConvNeXt-Tiny` trên Colab GPU T4)
 
 | Giai đoạn | Epoch | Thời gian | Train Loss | Train Acc | Val Loss | Val Acc | Val Macro-F1 |
