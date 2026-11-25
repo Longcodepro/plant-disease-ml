@@ -263,6 +263,12 @@ plant-disease-ml/
 └── run_dev.sh                        # Script khởi chạy song song Backend (:8000) & Frontend (:5173)
 ```
 
+### Bước 0: Chạy trên Google Colab (lấy code trực tiếp từ GitHub, chỉ lưu model ra Drive)
+Mở [notebooks/03_convnext_tiny_khoi.ipynb](notebooks/03_convnext_tiny_khoi.ipynb) hoặc [notebooks/04_convnext_tiny_domain_adaptation.ipynb](notebooks/04_convnext_tiny_domain_adaptation.ipynb) trên Google Colab (GPU T4):
+- Cell thiết lập sẽ tự `git clone` / `git pull` code mới nhất từ GitHub vào SSD tạm `/content/plant-disease-ml` (không phụ thuộc tốc độ đồng bộ Google Drive Desktop).
+- Dataset (`data.tar.gz`, PlantDoc) được tải và giải nén thẳng vào `/content/data`.
+- Google Drive chỉ dùng để lưu file đầu ra bền vững (`.pth`, `.onnx`, `_int8.onnx` trong `models/` và báo cáo JSON trong `notebooks/eda_reports/`).
+
 ### Bước 1: Tải dữ liệu (nếu chưa có `data/`)
 ```bash
 python scripts/download_data.py
