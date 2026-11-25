@@ -83,13 +83,31 @@ def build_dataloaders(
     batch_size: int = 64,
     image_size: int = 224,
     num_workers: int = 4,
-    pin_memory: bool = False
+    pin_memory: bool = False,
+    use_clean_split: bool = False,
 ) -> Tuple[DataLoader, DataLoader, Dict[int, str], Optional[torch.Tensor]]:
     """
     Factory function xây dựng DataLoaders chuẩn mực cho Train và Validation.
+    Nếu `use_clean_split=True`, tự động kiểm tra/tạo bản chia Group-Split theo UUID
+    (0% Near-Duplicate Leakage) tại `<data_dir>/clean_split` thông qua `scripts/audit_uuid_leakage.py`.
     """
-    train_path = Path(data_dir) / "train"
-    valid_path = Path(data_dir) / "valid"
+    base_dir = Path(data_dir)
+    if use_clean_split:
+        clean_dir = base_dir / "clean_split"
+        if not (clean_dir / "train").exists() or not (clean_dir / "valid").exists():
+            from scripts.audit_uuid_leakage import audit_and_optionally_split
+
+            report_path = Path("notebooks") / "eda_reports" / "uuid_leakage_audit.json"
+            audit_and_optionally_split(
+                data_dir=base_dir,
+                out_json=report_path,
+                build_clean_split=True,
+                clean_dir=clean_dir,
+            )
+        base_dir = clean_dir
+
+    train_path = base_dir / "train"
+    valid_path = base_dir / "valid"
 
     if not train_path.exists() or not valid_path.exists():
         raise FileNotFoundError(f"Không tìm thấy thư mục {train_path} hoặc {valid_path}")
