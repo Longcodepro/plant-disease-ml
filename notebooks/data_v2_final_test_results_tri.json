@@ -1,0 +1,107 @@
+{
+  "dataset": "data_v2 (spMohanty PlantVillage official leaf-grouped split)",
+  "split_fingerprint": "4fc4a896d43ddbfafbfc6eeb18e042455f758fe8662e7122a8b7a6a0f34bb61f",
+  "test_samples": 8098,
+  "num_classes": 38,
+  "v1_test_metrics": {
+    "accuracy": 0.9962,
+    "macro_f1": 0.9935,
+    "weighted_f1": 0.9962,
+    "macro_precision": 0.9914,
+    "macro_recall": 0.9958,
+    "latency_per_image_ms": 0.3,
+    "throughput_fps": 3342.7,
+    "total_parameters": 4056226,
+    "model_size_mb": 15.47,
+    "errors": 31,
+    "total": 8098,
+    "top_5_confusions": [
+      {
+        "true_class": "Corn_(maize)___Northern_Leaf_Blight",
+        "pred_class": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+        "count": 5
+      },
+      {
+        "true_class": "Tomato___Late_blight",
+        "pred_class": "Tomato___Early_blight",
+        "count": 4
+      },
+      {
+        "true_class": "Soybean___healthy",
+        "pred_class": "Blueberry___healthy",
+        "count": 3
+      },
+      {
+        "true_class": "Tomato___Bacterial_spot",
+        "pred_class": "Tomato___Late_blight",
+        "count": 3
+      },
+      {
+        "true_class": "Cherry_(including_sour)___healthy",
+        "pred_class": "Pepper,_bell___healthy",
+        "count": 2
+      }
+    ],
+    "single_image_gpu_latency": {
+      "n_samples": 50,
+      "avg_ms": 21.46,
+      "p95_ms": 26.03
+    }
+  },
+  "v2_robust_test_metrics": {
+    "accuracy": 0.9937,
+    "macro_f1": 0.9912,
+    "weighted_f1": 0.9937,
+    "macro_precision": 0.9902,
+    "macro_recall": 0.9922,
+    "latency_per_image_ms": 0.3,
+    "throughput_fps": 3314.9,
+    "total_parameters": 4056226,
+    "model_size_mb": 15.47,
+    "errors": 51,
+    "total": 8098,
+    "top_5_confusions": [
+      {
+        "true_class": "Tomato___Bacterial_spot",
+        "pred_class": "Tomato___Target_Spot",
+        "count": 10
+      },
+      {
+        "true_class": "Pepper,_bell___healthy",
+        "pred_class": "Pepper,_bell___Bacterial_spot",
+        "count": 5
+      },
+      {
+        "true_class": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+        "pred_class": "Tomato___Bacterial_spot",
+        "count": 4
+      },
+      {
+        "true_class": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+        "pred_class": "Corn_(maize)___Northern_Leaf_Blight",
+        "count": 3
+      },
+      {
+        "true_class": "Corn_(maize)___Northern_Leaf_Blight",
+        "pred_class": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+        "count": 3
+      }
+    ],
+    "single_image_gpu_latency": {
+      "n_samples": 50,
+      "avg_ms": 21.05,
+      "p95_ms": 25.8
+    }
+  },
+  "baseline1_test_metrics": {
+    "accuracy": 0.0136,
+    "macro_f1": 0.0007,
+    "weighted_f1": 0.0004,
+    "macro_precision": 0.0004,
+    "macro_recall": 0.0263,
+    "latency_per_image_ms": 0.04,
+    "throughput_fps": 24949.8,
+    "total_parameters": 427174,
+    "model_size_mb": 1.63
+  }
+}

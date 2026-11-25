@@ -95,7 +95,7 @@ def run_robust_finetuning(
         loader_kwargs["prefetch_factor"] = 2
 
     train_loader = DataLoader(train_ds, shuffle=True, drop_last=True, **loader_kwargs)
-    valid_loader = DataLoader(valid_ds, shuffle=False, drop_last=False, **loader_kwargs)
+    valid_loader = DataLoader(valid_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=use_cuda, drop_last=False)
 
     print("=" * 68, flush=True)
     print(" TINH CHINH EFFICIENTNET-B0 ROBUST V2 (MOBILE PREPROC + BLUR/NOISE)", flush=True)

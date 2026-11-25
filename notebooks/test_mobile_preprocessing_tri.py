@@ -82,6 +82,21 @@ def test_extract_leaf_base_id_uuid_and_kaggle_suffixes():
 
 
 def test_split_unseen_valid_indices_on_real_dataset():
+    # Synthetic check: verifies sibling detection catches rotated/flipped variants
+    fake_train = [
+        ("data/train/Apple___Apple_scab/00075aa8-d81a-4184-8541-b692b78d398a___FREC_Scab 3335.JPG", 0),
+        ("data/train/Corn/RS_Rust 1564.JPG", 1),
+    ]
+    fake_valid = [
+        ("data/valid/Apple___Apple_scab/00075aa8-d81a-4184-8541-b692b78d398a___FREC_Scab 3335_90deg.JPG", 0),
+        ("data/valid/Corn/RS_Rust 1564_flipLR.JPG", 1),
+        ("data/valid/Apple___Apple_scab/11111111-2222-3333-4444-555555555555___FREC_Scab 9999.JPG", 0),
+    ]
+    syn_unseen, syn_sibling = split_unseen_valid_indices(fake_train, fake_valid)
+    assert syn_unseen == [2]
+    assert syn_sibling == [0, 1]
+
+    # Real data_v2 check: 0% UUID/sibling leakage across all 8,147 valid images
     train_dir = ROOT_DIR / "data" / "train"
     valid_dir = ROOT_DIR / "data" / "valid"
     if not train_dir.exists() or not valid_dir.exists():
@@ -91,16 +106,13 @@ def test_split_unseen_valid_indices_on_real_dataset():
     valid_ds = datasets.ImageFolder(str(valid_dir))
     unseen_idx, sibling_idx = split_unseen_valid_indices(train_ds.samples, valid_ds.samples)
 
-    assert len(unseen_idx) == 6108
-    assert len(sibling_idx) == 11464
-    assert len(unseen_idx) + len(sibling_idx) == len(valid_ds.samples)
+    assert len(sibling_idx) == 0, f"Expected 0 leaked siblings in data_v2, got {len(sibling_idx)}"
+    assert len(unseen_idx) == len(valid_ds.samples)
     assert set(unseen_idx).isdisjoint(set(sibling_idx))
 
     train_ids = {extract_leaf_base_id(p) for p, _ in train_ds.samples}
     for idx in unseen_idx[:200]:
         assert extract_leaf_base_id(valid_ds.samples[idx][0]) not in train_ids
-    for idx in sibling_idx[:200]:
-        assert extract_leaf_base_id(valid_ds.samples[idx][0]) in train_ids
 
 
 def test_preprocessor_output_rgb_size_sharpness_and_color_stability():

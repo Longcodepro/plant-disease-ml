@@ -247,6 +247,7 @@ def run_training(
     history_out: str = "notebooks/efficientnet_b0_tri_results.json",
     baseline_path: str = "models/baseline1_simple_cnn.pth",
     author: str = "Tri",
+    resume_checkpoint: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Chạy toàn bộ quy trình huấn luyện 2 pha, đánh giá công bằng và phân tích lỗi."""
     torch.manual_seed(seed)
@@ -301,15 +302,13 @@ def run_training(
             dataset=valid_loader.dataset,
             batch_size=batch_size,
             shuffle=False,
-            num_workers=num_workers,
+            num_workers=0,
             pin_memory=use_cuda,
             drop_last=False,
-            persistent_workers=True,
-            prefetch_factor=2,
         )
 
     num_classes = len(idx_to_class)
-    model = build_efficientnet_b0(num_classes=num_classes, pretrained=True, dropout=dropout).to(device)
+    model = build_efficientnet_b0(num_classes=num_classes, pretrained=(resume_checkpoint is None), dropout=dropout).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights.to(device), label_smoothing=label_smoothing)
     scaler = torch.amp.GradScaler("cuda", enabled=use_cuda)
 
@@ -318,9 +317,26 @@ def run_training(
     best_epoch = 0
     best_metrics: Dict[str, Any] = {}
     overall_peak_vram_mb = 0.0
-    total_start = time.perf_counter()
+    prior_elapsed_sec = 0.0
     history_path = Path(history_out)
     ckpt_path = Path(save_path)
+
+    if resume_checkpoint:
+        res_ckpt = torch.load(resume_checkpoint, map_location=device, weights_only=True)
+        model.load_state_dict(res_ckpt["model_state_dict"])
+        best_macro_f1 = float(res_ckpt.get("val_f1_macro", -1.0))
+        best_epoch = int(res_ckpt.get("best_epoch", 0))
+        if history_path.exists():
+            prev_data = json.loads(history_path.read_text(encoding="utf-8"))
+            history = list(prev_data.get("history", []))
+            overall_peak_vram_mb = float(prev_data.get("overall_peak_vram_mb", 0.0))
+            prior_elapsed_sec = sum(float(r.get("epoch_total_sec", 0.0)) for r in history)
+        print(
+            f"[OK] Tiep tuc tu {resume_checkpoint} (Epoch {len(history)}, Best Ep {best_epoch} Macro-F1={best_macro_f1*100:.2f}%)",
+            flush=True,
+        )
+
+    total_start = time.perf_counter()
 
     def _run_phase(
         phase_num: int,
@@ -432,7 +448,7 @@ def run_training(
         return current_epoch
 
     # PHA 1: Warm-up (Khoa backbone, chi train classifier)
-    epoch_cursor = 0
+    epoch_cursor = len(history)
     if epochs_phase1 > 0:
         set_backbone_trainable(model, trainable=False)
         opt_p1 = optim.AdamW(model.classifier.parameters(), lr=lr_head_p1, weight_decay=weight_decay)
@@ -454,7 +470,7 @@ def run_training(
             2, "Fine-tune (Full Unfrozen)", epochs_phase2, opt_p2, sched_p2, patience, epoch_cursor
         )
 
-    total_train_time_sec = round(time.perf_counter() - total_start, 2)
+    total_train_time_sec = round(prior_elapsed_sec + (time.perf_counter() - total_start), 2)
 
     # Nap lai dung Best Checkpoint de cham diem cuoi cung & phan tich loi
     print("\n--- DANH GIA CUOI CUNG TREN BEST CHECKPOINT ---", flush=True)
@@ -514,8 +530,8 @@ def run_training(
         "overall_peak_vram_mb": overall_peak_vram_mb,
         "config": {
             "data_dir": data_dir,
-            "epochs_phase1": epochs_phase1,
-            "epochs_phase2": epochs_phase2,
+            "epochs_phase1": sum(1 for r in history if r.get("phase") == 1) if resume_checkpoint else epochs_phase1,
+            "epochs_phase2": sum(1 for r in history if r.get("phase") == 2) if resume_checkpoint else epochs_phase2,
             "batch_size": batch_size,
             "num_workers": num_workers,
             "lr_head_p1": lr_head_p1,
@@ -561,6 +577,9 @@ if __name__ == "__main__":
     parser.add_argument("--history_out", type=str, default="notebooks/efficientnet_b0_tri_results.json")
     parser.add_argument("--baseline_path", type=str, default="models/baseline1_simple_cnn.pth")
     parser.add_argument("--author", type=str, default="Tri")
+    parser.add_argument("--lr_backbone_p2", type=float, default=1e-4)
+    parser.add_argument("--lr_head_p2", type=float, default=5e-4)
+    parser.add_argument("--resume_checkpoint", type=str, default=None)
     args = parser.parse_args()
 
     run_training(
@@ -569,10 +588,13 @@ if __name__ == "__main__":
         epochs_phase2=args.epochs_phase2,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+        lr_backbone_p2=args.lr_backbone_p2,
+        lr_head_p2=args.lr_head_p2,
         patience=args.patience,
         subset_fraction=args.subset_fraction,
         save_path=args.save_path,
         history_out=args.history_out,
         baseline_path=args.baseline_path,
         author=args.author,
+        resume_checkpoint=args.resume_checkpoint,
     )

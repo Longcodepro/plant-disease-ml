@@ -1,0 +1,1 @@
+This is a plain text file, not an image, used to verify HTTP 400 validation on POST /predict.

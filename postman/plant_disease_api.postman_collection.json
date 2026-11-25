@@ -1,0 +1,395 @@
+{
+  "info": {
+    "_postman_id": "b3f7d8a1-6c4e-4b2f-9a1d-3e8f5c7b2a90",
+    "name": "Plant Disease Classification API (FastAPI)",
+    "description": "Bộ test tự động cho Plant Disease Classification REST API (`backend/main.py`).\n\nHƯỚNG DẪN NHANH:\n1. Import file collection này + file environment `plant_disease_local.postman_environment.json` vào Postman.\n2. Trong Postman -> Settings -> General -> Working Directory: chọn `d:\\plant-disease-ml` để các đường dẫn ảnh tương đối (`data/test/...`, `postman/...`) tự khớp 100%.\n3. Khởi động Backend FastAPI trên cổng 8000 (`uvicorn backend.main:app --port 8000`).\n4. Bấm **Run collection** để chạy toàn bộ 8 test case (Health Check, 4 Happy Path đa lớp lá bệnh, 3 Negative Cases).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01. Health Check (GET /health)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP status là 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Phản hồi JSON hợp lệ & đủ schema HealthResponse', function () {",
+              "    const json = pm.response.json();",
+              "    pm.expect(json).to.have.all.keys('status', 'model_loaded', 'model_version');",
+              "    pm.expect(json.status).to.eql('healthy');",
+              "    pm.expect(json.model_loaded).to.eql(true);",
+              "    pm.expect(json.model_version).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "pm.test('Độ trễ /health dưới 500 ms', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(500);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Kiểm tra server FastAPI đang hoạt động và mô hình đã được nạp sẵn sàng vào RAM/GPU."
+      },
+      "response": []
+    },
+    {
+      "name": "02. Predict - Apple Scab (Happy Path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP status là 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Đủ schema PredictionResponse và giá trị hợp lệ', function () {",
+              "    const json = pm.response.json();",
+              "    pm.expect(json).to.have.all.keys('predicted_class', 'confidence', 'top_3', 'inference_time_ms', 'model_version');",
+              "    pm.expect(json.confidence).to.be.within(0, 1);",
+              "    pm.expect(json.inference_time_ms).to.be.at.least(0);",
+              "    pm.expect(json.top_3).to.be.an('array').with.lengthOf(3);",
+              "    pm.expect(json.top_3[0].class_name).to.eql(json.predicted_class);",
+              "    pm.expect(json.top_3[0].confidence).to.be.at.least(json.top_3[1].confidence);",
+              "    pm.expect(json.top_3[1].confidence).to.be.at.least(json.top_3[2].confidence);",
+              "});",
+              "",
+              "pm.test('Dự đoán đúng lớp Apple___Apple_scab với độ tin cậy đạt ngưỡng', function () {",
+              "    const json = pm.response.json();",
+              "    const minConf = parseFloat(pm.environment.get('min_confidence') || '0.8');",
+              "    pm.expect(json.predicted_class).to.eql('Apple___Apple_scab');",
+              "    pm.expect(json.confidence).to.be.at.least(minConf);",
+              "});",
+              "",
+              "pm.test('Độ trễ suy luận nằm trong giới hạn cho phép', function () {",
+              "    const json = pm.response.json();",
+              "    const maxLat = parseFloat(pm.environment.get('max_latency_ms') || '2000');",
+              "    pm.expect(json.inference_time_ms).to.be.below(maxLat);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "data/test/Apple___Apple_scab/01a66316-0e98-4d3b-a56f-d78752cd043f___FREC_Scab 3003.JPG"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Gửi ảnh lá táo bị ghẻ (`data/test/AppleScab1.JPG`) và kiểm tra schema, Top-3 giảm dần, nhãn đúng và độ trễ."
+      },
+      "response": []
+    },
+    {
+      "name": "03. Predict - Tomato Early Blight (Happy Path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP status là 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Dự đoán đúng Tomato___Early_blight (phát hiện lỗi Baseline 1 nếu fail)', function () {",
+              "    const json = pm.response.json();",
+              "    const minConf = parseFloat(pm.environment.get('min_confidence') || '0.8');",
+              "    pm.expect(json.predicted_class).to.eql('Tomato___Early_blight');",
+              "    pm.expect(json.confidence).to.be.at.least(minConf);",
+              "    pm.expect(json.top_3).to.be.an('array').with.lengthOf(3);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "data/test/Tomato___Early_blight/00c5c908-fc25-4710-a109-db143da23112___RS_Erly.B 7778.JPG"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Gửi ảnh lá cà chua bị úa sớm (`data/test/TomatoEarlyBlight1.JPG`). Lưu ý: Baseline 1 mặc định sẽ FAIL test này vì luôn đoán lớp Apple___Apple_scab."
+      },
+      "response": []
+    },
+    {
+      "name": "04. Predict - Potato Healthy (Happy Path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP status là 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Dự đoán đúng Potato___healthy với độ tin cậy đạt ngưỡng', function () {",
+              "    const json = pm.response.json();",
+              "    const minConf = parseFloat(pm.environment.get('min_confidence') || '0.8');",
+              "    pm.expect(json.predicted_class).to.eql('Potato___healthy');",
+              "    pm.expect(json.confidence).to.be.at.least(minConf);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "data/test/Potato___healthy/0b3e5032-8ae8-49ac-8157-a1cac3df01dd___RS_HL 1817.JPG"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Gửi ảnh lá khoai tây khỏe mạnh (`data/test/PotatoHealthy1.JPG`)."
+      },
+      "response": []
+    },
+    {
+      "name": "05. Predict - Corn Common Rust (Happy Path)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP status là 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "pm.test('Dự đoán đúng Corn_(maize)___Common_rust_ với độ tin cậy đạt ngưỡng', function () {",
+              "    const json = pm.response.json();",
+              "    const minConf = parseFloat(pm.environment.get('min_confidence') || '0.8');",
+              "    pm.expect(json.predicted_class).to.eql('Corn_(maize)___Common_rust_');",
+              "    pm.expect(json.confidence).to.be.at.least(minConf);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "data/test/Corn_(maize)___Common_rust_/RS_Rust 1574.JPG"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Gửi ảnh lá ngô bị gỉ sắt (`data/test/CornCommonRust1.JPG`)."
+      },
+      "response": []
+    },
+    {
+      "name": "06. Negative - Non-Image File (400 Bad Request)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Từ chối file không phải ảnh với HTTP 400', function () {",
+              "    pm.response.to.have.status(400);",
+              "});",
+              "",
+              "pm.test('Trả về thông báo lỗi detail rõ ràng', function () {",
+              "    const json = pm.response.json();",
+              "    pm.expect(json).to.have.property('detail');",
+              "    pm.expect(json.detail).to.be.a('string').and.include('ảnh');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "postman/sample_invalid.txt"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Kiểm thử bảo vệ đầu vào: gửi file `.txt` (`postman/sample_invalid.txt`) phải bị chặn bằng mã 400."
+      },
+      "response": []
+    },
+    {
+      "name": "07. Negative - Missing File Field (422 Unprocessable Entity)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Thiếu trường file trả về HTTP 422', function () {",
+              "    pm.response.to.have.status(422);",
+              "});",
+              "",
+              "pm.test('FastAPI trả về mảng lỗi validation detail', function () {",
+              "    const json = pm.response.json();",
+              "    pm.expect(json).to.have.property('detail');",
+              "    pm.expect(json.detail).to.be.an('array').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": []
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Gửi POST /predict không đính kèm trường `file` để kiểm tra FastAPI validation (422)."
+      },
+      "response": []
+    },
+    {
+      "name": "08. Negative - Corrupted Image File (Error Handling)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Ảnh hỏng không làm sập server, trả về lỗi 400 hoặc 500 có JSON detail', function () {",
+              "    pm.expect(pm.response.code).to.be.oneOf([400, 500]);",
+              "    const json = pm.response.json();",
+              "    pm.expect(json).to.have.property('detail');",
+              "    pm.expect(json.detail).to.be.a('string').and.not.empty;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "postman/sample_corrupted.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/predict",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "predict"
+          ]
+        },
+        "description": "Gửi file có đuôi `.jpg` nhưng nội dung bị hỏng (`postman/sample_corrupted.jpg`) để kiểm tra khả năng xử lý lỗi của API."
+      },
+      "response": []
+    }
+  ]
+}
