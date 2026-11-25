@@ -1,0 +1,394 @@
+{
+  "num_classes": 38,
+  "total_train_images": 70295,
+  "total_valid_images": 17572,
+  "total_train_unique_uuids": 40965,
+  "total_valid_unique_uuids": 14752,
+  "total_overlap_uuids": 8685,
+  "valid_uuid_overlap_pct": 58.87,
+  "leaked_valid_images": 11083,
+  "leaked_valid_images_pct": 63.07,
+  "clean_split_created": "/Users/phamgiakhoi/Dự án/ML/plant-disease-ml/data/clean_split",
+  "per_class": [
+    {
+      "class_name": "Apple___Apple_scab",
+      "train_images": 2016,
+      "valid_images": 504,
+      "train_unique_uuids": 630,
+      "valid_unique_uuids": 376,
+      "overlap_uuids": 376,
+      "leaked_valid_images": 504,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Apple___Cedar_apple_rust",
+      "train_images": 1760,
+      "valid_images": 440,
+      "train_unique_uuids": 275,
+      "valid_unique_uuids": 233,
+      "overlap_uuids": 233,
+      "leaked_valid_images": 440,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Grape___healthy",
+      "train_images": 1692,
+      "valid_images": 423,
+      "train_unique_uuids": 423,
+      "valid_unique_uuids": 285,
+      "overlap_uuids": 285,
+      "leaked_valid_images": 423,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Peach___healthy",
+      "train_images": 1728,
+      "valid_images": 432,
+      "train_unique_uuids": 360,
+      "valid_unique_uuids": 275,
+      "overlap_uuids": 275,
+      "leaked_valid_images": 432,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Potato___healthy",
+      "train_images": 1824,
+      "valid_images": 456,
+      "train_unique_uuids": 152,
+      "valid_unique_uuids": 149,
+      "overlap_uuids": 149,
+      "leaked_valid_images": 456,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Raspberry___healthy",
+      "train_images": 1781,
+      "valid_images": 445,
+      "train_unique_uuids": 371,
+      "valid_unique_uuids": 272,
+      "overlap_uuids": 272,
+      "leaked_valid_images": 445,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Strawberry___healthy",
+      "train_images": 1824,
+      "valid_images": 456,
+      "train_unique_uuids": 456,
+      "valid_unique_uuids": 319,
+      "overlap_uuids": 319,
+      "leaked_valid_images": 456,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Tomato___Tomato_mosaic_virus",
+      "train_images": 1790,
+      "valid_images": 448,
+      "train_unique_uuids": 373,
+      "valid_unique_uuids": 280,
+      "overlap_uuids": 280,
+      "leaked_valid_images": 448,
+      "leaked_valid_ratio": 1.0
+    },
+    {
+      "class_name": "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+      "train_images": 1642,
+      "valid_images": 410,
+      "train_unique_uuids": 512,
+      "valid_unique_uuids": 297,
+      "overlap_uuids": 296,
+      "leaked_valid_images": 406,
+      "leaked_valid_ratio": 0.9902
+    },
+    {
+      "class_name": "Apple___Black_rot",
+      "train_images": 1987,
+      "valid_images": 497,
+      "train_unique_uuids": 619,
+      "valid_unique_uuids": 370,
+      "overlap_uuids": 368,
+      "leaked_valid_images": 489,
+      "leaked_valid_ratio": 0.9839
+    },
+    {
+      "class_name": "Cherry_(including_sour)___healthy",
+      "train_images": 1826,
+      "valid_images": 456,
+      "train_unique_uuids": 825,
+      "valid_unique_uuids": 375,
+      "overlap_uuids": 346,
+      "leaked_valid_images": 415,
+      "leaked_valid_ratio": 0.9101
+    },
+    {
+      "class_name": "Tomato___Early_blight",
+      "train_images": 1920,
+      "valid_images": 480,
+      "train_unique_uuids": 944,
+      "valid_unique_uuids": 406,
+      "overlap_uuids": 350,
+      "leaked_valid_images": 416,
+      "leaked_valid_ratio": 0.8667
+    },
+    {
+      "class_name": "Potato___Early_blight",
+      "train_images": 1939,
+      "valid_images": 485,
+      "train_unique_uuids": 935,
+      "valid_unique_uuids": 407,
+      "overlap_uuids": 342,
+      "leaked_valid_images": 414,
+      "leaked_valid_ratio": 0.8536
+    },
+    {
+      "class_name": "Pepper,_bell___Bacterial_spot",
+      "train_images": 1913,
+      "valid_images": 478,
+      "train_unique_uuids": 936,
+      "valid_unique_uuids": 397,
+      "overlap_uuids": 336,
+      "leaked_valid_images": 407,
+      "leaked_valid_ratio": 0.8515
+    },
+    {
+      "class_name": "Tomato___Leaf_Mold",
+      "train_images": 1882,
+      "valid_images": 470,
+      "train_unique_uuids": 892,
+      "valid_unique_uuids": 402,
+      "overlap_uuids": 342,
+      "leaked_valid_images": 398,
+      "leaked_valid_ratio": 0.8468
+    },
+    {
+      "class_name": "Potato___Late_blight",
+      "train_images": 1939,
+      "valid_images": 485,
+      "train_unique_uuids": 937,
+      "valid_unique_uuids": 414,
+      "overlap_uuids": 351,
+      "leaked_valid_images": 410,
+      "leaked_valid_ratio": 0.8454
+    },
+    {
+      "class_name": "Corn_(maize)___Northern_Leaf_Blight",
+      "train_images": 1908,
+      "valid_images": 477,
+      "train_unique_uuids": 918,
+      "valid_unique_uuids": 400,
+      "overlap_uuids": 333,
+      "leaked_valid_images": 394,
+      "leaked_valid_ratio": 0.826
+    },
+    {
+      "class_name": "Grape___Black_rot",
+      "train_images": 1888,
+      "valid_images": 472,
+      "train_unique_uuids": 1136,
+      "valid_unique_uuids": 428,
+      "overlap_uuids": 384,
+      "leaked_valid_images": 384,
+      "leaked_valid_ratio": 0.8136
+    },
+    {
+      "class_name": "Strawberry___Leaf_scorch",
+      "train_images": 1774,
+      "valid_images": 444,
+      "train_unique_uuids": 1064,
+      "valid_unique_uuids": 399,
+      "overlap_uuids": 354,
+      "leaked_valid_images": 354,
+      "leaked_valid_ratio": 0.7973
+    },
+    {
+      "class_name": "Corn_(maize)___healthy",
+      "train_images": 1859,
+      "valid_images": 465,
+      "train_unique_uuids": 1112,
+      "valid_unique_uuids": 415,
+      "overlap_uuids": 365,
+      "leaked_valid_images": 365,
+      "leaked_valid_ratio": 0.7849
+    },
+    {
+      "class_name": "Grape___Leaf_blight_(Isariopsis_Leaf_Spot)",
+      "train_images": 1722,
+      "valid_images": 430,
+      "train_unique_uuids": 1029,
+      "valid_unique_uuids": 383,
+      "overlap_uuids": 336,
+      "leaked_valid_images": 336,
+      "leaked_valid_ratio": 0.7814
+    },
+    {
+      "class_name": "Cherry_(including_sour)___Powdery_mildew",
+      "train_images": 1683,
+      "valid_images": 421,
+      "train_unique_uuids": 1003,
+      "valid_unique_uuids": 372,
+      "overlap_uuids": 323,
+      "leaked_valid_images": 323,
+      "leaked_valid_ratio": 0.7672
+    },
+    {
+      "class_name": "Grape___Esca_(Black_Measles)",
+      "train_images": 1920,
+      "valid_images": 480,
+      "train_unique_uuids": 1279,
+      "valid_unique_uuids": 443,
+      "overlap_uuids": 339,
+      "leaked_valid_images": 339,
+      "leaked_valid_ratio": 0.7063
+    },
+    {
+      "class_name": "Apple___healthy",
+      "train_images": 2008,
+      "valid_images": 502,
+      "train_unique_uuids": 1466,
+      "valid_unique_uuids": 471,
+      "overlap_uuids": 292,
+      "leaked_valid_images": 292,
+      "leaked_valid_ratio": 0.5817
+    },
+    {
+      "class_name": "Tomato___Target_Spot",
+      "train_images": 1827,
+      "valid_images": 457,
+      "train_unique_uuids": 1167,
+      "valid_unique_uuids": 390,
+      "overlap_uuids": 153,
+      "leaked_valid_images": 220,
+      "leaked_valid_ratio": 0.4814
+    },
+    {
+      "class_name": "Pepper,_bell___healthy",
+      "train_images": 1988,
+      "valid_images": 497,
+      "train_unique_uuids": 1205,
+      "valid_unique_uuids": 433,
+      "overlap_uuids": 161,
+      "leaked_valid_images": 225,
+      "leaked_valid_ratio": 0.4527
+    },
+    {
+      "class_name": "Tomato___healthy",
+      "train_images": 1926,
+      "valid_images": 481,
+      "train_unique_uuids": 1318,
+      "valid_unique_uuids": 417,
+      "overlap_uuids": 144,
+      "leaked_valid_images": 208,
+      "leaked_valid_ratio": 0.4324
+    },
+    {
+      "class_name": "Blueberry___healthy",
+      "train_images": 1816,
+      "valid_images": 454,
+      "train_unique_uuids": 1231,
+      "valid_unique_uuids": 394,
+      "overlap_uuids": 123,
+      "leaked_valid_images": 183,
+      "leaked_valid_ratio": 0.4031
+    },
+    {
+      "class_name": "Tomato___Spider_mites Two-spotted_spider_mite",
+      "train_images": 1741,
+      "valid_images": 435,
+      "train_unique_uuids": 1385,
+      "valid_unique_uuids": 410,
+      "overlap_uuids": 119,
+      "leaked_valid_images": 142,
+      "leaked_valid_ratio": 0.3264
+    },
+    {
+      "class_name": "Tomato___Late_blight",
+      "train_images": 1851,
+      "valid_images": 463,
+      "train_unique_uuids": 1592,
+      "valid_unique_uuids": 450,
+      "overlap_uuids": 134,
+      "leaked_valid_images": 134,
+      "leaked_valid_ratio": 0.2894
+    },
+    {
+      "class_name": "Tomato___Septoria_leaf_spot",
+      "train_images": 1745,
+      "valid_images": 436,
+      "train_unique_uuids": 1455,
+      "valid_unique_uuids": 414,
+      "overlap_uuids": 98,
+      "leaked_valid_images": 118,
+      "leaked_valid_ratio": 0.2706
+    },
+    {
+      "class_name": "Squash___Powdery_mildew",
+      "train_images": 1736,
+      "valid_images": 434,
+      "train_unique_uuids": 1525,
+      "valid_unique_uuids": 417,
+      "overlap_uuids": 107,
+      "leaked_valid_images": 107,
+      "leaked_valid_ratio": 0.2465
+    },
+    {
+      "class_name": "Corn_(maize)___Common_rust_",
+      "train_images": 1907,
+      "valid_images": 477,
+      "train_unique_uuids": 1907,
+      "valid_unique_uuids": 477,
+      "overlap_uuids": 0,
+      "leaked_valid_images": 0,
+      "leaked_valid_ratio": 0.0
+    },
+    {
+      "class_name": "Orange___Haunglongbing_(Citrus_greening)",
+      "train_images": 2010,
+      "valid_images": 503,
+      "train_unique_uuids": 2010,
+      "valid_unique_uuids": 503,
+      "overlap_uuids": 0,
+      "leaked_valid_images": 0,
+      "leaked_valid_ratio": 0.0
+    },
+    {
+      "class_name": "Peach___Bacterial_spot",
+      "train_images": 1838,
+      "valid_images": 459,
+      "train_unique_uuids": 1838,
+      "valid_unique_uuids": 459,
+      "overlap_uuids": 0,
+      "leaked_valid_images": 0,
+      "leaked_valid_ratio": 0.0
+    },
+    {
+      "class_name": "Soybean___healthy",
+      "train_images": 2022,
+      "valid_images": 505,
+      "train_unique_uuids": 2022,
+      "valid_unique_uuids": 505,
+      "overlap_uuids": 0,
+      "leaked_valid_images": 0,
+      "leaked_valid_ratio": 0.0
+    },
+    {
+      "class_name": "Tomato___Bacterial_spot",
+      "train_images": 1702,
+      "valid_images": 425,
+      "train_unique_uuids": 1702,
+      "valid_unique_uuids": 425,
+      "overlap_uuids": 0,
+      "leaked_valid_images": 0,
+      "leaked_valid_ratio": 0.0
+    },
+    {
+      "class_name": "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+      "train_images": 1961,
+      "valid_images": 490,
+      "train_unique_uuids": 1961,
+      "valid_unique_uuids": 490,
+      "overlap_uuids": 0,
+      "leaked_valid_images": 0,
+      "leaked_valid_ratio": 0.0
+    }
+  ]
+}

@@ -82,7 +82,7 @@ Toàn bộ logic tiền xử lý được gom về một nguồn duy nhất ([`n
 
 | Tiêu chí | Đa số bài làm thông thường | Cách dự án này triển khai (Điểm cộng) |
 |---|---|---|
-| **Chống Data Leakage** | Áp chung 1 transform có augmentation cho cả valid hoặc không kiểm tra trùng ảnh | Tách biệt tuyệt đối `train_transforms` vs `eval_transforms`; bổ sung công cụ **Rust `data-audit`** tính **SHA-256** đa luồng để phát hiện ảnh hỏng & ảnh trùng lặp giữa `train ↔ valid` |
+| **Chống Data Leakage** | Áp chung 1 transform có augmentation cho cả valid hoặc không kiểm tra trùng ảnh | Tách biệt tuyệt đối `train_transforms` vs `eval_transforms`; dùng **Rust `data-audit`** (SHA-256) và **[`scripts/audit_uuid_leakage.py`](scripts/audit_uuid_leakage.py)** phát hiện & tách lại **Group-Split theo UUID (0% rò rỉ)** trên cả 87.867 ảnh |
 | **Tính công bằng khi so sánh model** | Mỗi notebook tự viết lại `DataLoader` và hàm tính Accuracy riêng | Bắt buộc dùng chung `data_pipeline.py` + `eval_engine.py` và cùng file nhãn `class_indices.json` |
 | **Tối ưu I/O huấn luyện trên Colab** | Đọc trực tiếp 87.000 ảnh từ Google Drive (chậm gấp 10–20 lần) | Notebook tự động tải/giải nén `data.tar.gz` vào **SSD tạm `/content/data`** của Colab để tận dụng tối đa GPU T4, chỉ lưu checkpoint `.pth`/`.onnx` về Drive |
 | **Đồng bộ Train ↔ Serving** | Hardcode tên lớp hoặc tiền xử lý khác nhau giữa notebook và API | Dùng chung `class_indices.json` và chuẩn Bilinear `224×224` + ImageNet mean/std ở cả PyTorch, ONNX Python và Rust |
@@ -179,15 +179,24 @@ Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức 
 
 *(Chi phí giải mã JPEG + resize `224×224` + chuẩn hóa ImageNet trên Apple M2 chỉ **`1.28 ms`** → tổng End-to-End với ONNX INT8 là **`~25.1 ms`**. Ngoài ra repo đã sẵn sàng `--mode static` trong `scripts/quantize_onnx.py` và Rust API trong `backend/rust/` để mở rộng benchmark khi cần.)*
 
-### 4.5. Đánh giá Domain Shift thực tế (Lab vs Ngoài đồng ruộng) & Giải pháp thích nghi miền
+### 4.5. Kiểm định Leakage theo UUID & Đánh giá Domain Shift (Lab vs Ngoài đồng ruộng)
+
+#### A. Phát hiện & Khắc phục Near-Duplicate Leakage từ nguồn dữ liệu (`87.867` ảnh)
+Quét tên file gốc (`<uuid>___...`) trên toàn bộ **38 lớp** bằng [`scripts/audit_uuid_leakage.py`](scripts/audit_uuid_leakage.py) phát hiện một sự thật quan trọng của bộ `New Plant Diseases Dataset (Augmented)` phổ biến trên mạng:
+- **Nguyên nhân từ nguồn:** Tác giả bộ dữ liệu gốc đã xoay/lật ảnh (`_180deg`, `_flipTB`, `_new30degFlipLR`...) **trước khi chia `train / valid`** (không phải do pipeline code của nhóm).
+- **Mức độ rò rỉ đo được:** Trong `17.572` ảnh `valid` (`14.752` UUID gốc), có tới **`8.685` UUID (`58.87%`) trùng với `train`**, tương đương **`11.083 / 17.572` ảnh valid (`63.07%`)** là biến thể xoay/lật của lá đã thấy ở tập train (`notebooks/eda_reports/uuid_leakage_audit.json`).
+- **Cách xử lý & Kiểm chứng trung thực:**
+  1. **Tạo bản chia Group-Split sạch (`--build-clean-split`):** Chia lại theo cụm `UUID` (`70.257` train / `17.610` valid), xác minh lại còn **`0 / 17.610` (`0.00%` leakage)**.
+  2. **Chấm riêng trên tập Valid KHÔNG trùng UUID:** Lấy mẫu `432` ảnh `valid` có UUID hoàn toàn chưa từng xuất hiện trong `train` (tối đa 15 ảnh/lớp × 38 lớp) chạy qua `convnext_tiny_khoi_int8.onnx` → đạt **`432/432 (100.00%)`**. Điều này chứng minh trong miền phòng lab, `ConvNeXt-Tiny` **thực sự học được đặc trưng bệnh** chứ không chỉ học vẹt bản xoay — vấn đề thực sự nằm ở **Domain Shift** khi ra ngoài đồng ruộng.
+
+#### B. Kết quả đo thực tế Baseline Domain Shift (`PlantDoc Test`, 236 ảnh ngoài trời)
 
 Để không dừng ở kết quả phòng lab (`PlantVillage` nền xám đồng nhất), dự án đã tích hợp và chạy kiểm chứng thực tế trên bộ dữ liệu ngoài trời **`PlantDoc`** ([`pratikkayal/PlantDoc-Dataset`](https://github.com/pratikkayal/PlantDoc-Dataset) — ảnh chụp tự nhiên ngoài đồng ruộng có nền đất, cỏ, ánh sáng gắt và nhiều lá chồng nhau), ánh xạ 1-1 toàn bộ **28 lớp chung** (2.336 ảnh train · 236 ảnh test) qua [`scripts/prepare_plantdoc.py`](scripts/prepare_plantdoc.py) và [`scripts/eval_domain_shift.py`](scripts/eval_domain_shift.py).
-
-#### Kết quả đo thực tế Baseline Domain Shift (`convnext_tiny_khoi_int8.onnx` trên 236 ảnh `PlantDoc Test`)
 
 | Miền dữ liệu | Số ảnh / Lớp | Top-1 Accuracy | Top-3 Accuracy | Macro F1-Score | Nhận xét thực nghiệm |
 |---|---|---:|---:|---:|---|
 | **Phòng Lab (`PlantVillage Valid`)** | 17.572 ảnh · 38 lớp | **99.95%** | ~100% | **99.95%** | Gần như tuyệt đối khi nền xám đồng nhất |
+| **Lab sạch UUID (Unseen Leaf IDs)** | 432 ảnh · 38 lớp | **100.00%** (`432/432`) | **100.00%** | — | Không bị học vẹt theo bản xoay/lật trong miền lab |
 | **Ngoài đồng ruộng (`PlantDoc Test`)** | 236 ảnh · 27 lớp | **30.93%** (`73/236`) | **54.24%** (`128/236`) | **28.22%** | Tụt mạnh do **Domain Shift** (nền tự nhiên phức tạp, ánh sáng ngoài trời, góc chụp đa dạng) |
 
 *(Báo cáo chi tiết từng lớp được lưu tại [`notebooks/eda_reports/plantdoc_domain_shift.json`](notebooks/eda_reports/plantdoc_domain_shift.json).)*
