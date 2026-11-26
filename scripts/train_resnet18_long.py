@@ -30,6 +30,7 @@ from notebooks.eval_engine import evaluate_model, print_evaluation_summary
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Huấn luyện ResNet-18 theo chuẩn nhóm")
+    parser.add_argument("--version", type=str, default="run_01", help="Phiên bản thử nghiệm (vd: run_01, run_02)")
     parser.add_argument("--dataset", choices=["v1", "v2"], default="v2",
                         help="v1: bộ cũ (data/), v2: bộ mới (data_v2/)")
     parser.add_argument("--data-dir", type=str, default=None,
@@ -104,9 +105,12 @@ def main():
         label_smoothing=args.label_smoothing
     )
 
-    save_pth = ROOT_DIR / "models" / f"resnet18_long_{args.dataset}.pth"
-    save_onnx = ROOT_DIR / "models" / f"resnet18_long_{args.dataset}.onnx"
-    save_onnx_int8 = ROOT_DIR / "models" / f"resnet18_long_{args.dataset}_int8.onnx"
+    tag = f"resnet18_long_{args.dataset}_{args.version}"
+    save_pth = ROOT_DIR / "models" / f"{tag}.pth"
+    save_onnx = ROOT_DIR / "models" / f"{tag}.onnx"
+    save_onnx_int8 = ROOT_DIR / "models" / f"{tag}_int8.onnx"
+    # onnx already set above
+    # int8 already set above
     save_pth.parent.mkdir(parents=True, exist_ok=True)
 
     best_macro_f1 = 0.0
