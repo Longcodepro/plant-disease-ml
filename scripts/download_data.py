@@ -152,8 +152,15 @@ def main():
         action="store_true",
         help="Giữ lại file nén sau khi giải nén (mặc định sẽ xóa để tiết kiệm dung lượng)"
     )
+    parser.add_argument(
+        "--data-dir", "-d",
+        type=str,
+        default=None,
+        help="Thư mục đích lưu trữ dataset (mặc định: data/)"
+    )
 
     args = parser.parse_args()
+    target_data_dir = Path(args.data_dir).resolve() if args.data_dir else DATA_DIR
 
     # Tìm file nén có sẵn
     local_archive = None
@@ -170,7 +177,7 @@ def main():
                     break
 
     if local_archive:
-        extract_and_organize(local_archive, DATA_DIR)
+        extract_and_organize(local_archive, target_data_dir)
         return
 
     # Tải từ Google Drive
@@ -189,7 +196,7 @@ def main():
         print("❌ Lỗi: Quá trình tải file từ Google Drive thất bại.")
         sys.exit(1)
 
-    extract_and_organize(dest_archive, DATA_DIR)
+    extract_and_organize(dest_archive, target_data_dir)
 
     if not args.keep_archive and dest_archive.exists():
         print("🧹 Dọn dẹp: Đang xóa file nén tạm để giải phóng dung lượng...")
