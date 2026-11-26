@@ -11,7 +11,7 @@ FROM python:3.11-slim
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=7860 \
-    MODEL_PATH="models/convnext_tiny_khoi_int8.onnx" \
+    MODEL_PATH="models/convnext_tiny_field_v2_int8.onnx" \
     MAPPING_PATH="models/class_indices.json" \
     CORS_ORIGINS="*"
 
@@ -23,7 +23,7 @@ COPY backend/requirements-onnx.txt ./requirements-onnx.txt
 RUN pip install --no-cache-dir -r requirements-onnx.txt
 
 COPY --chown=user:user backend/__init__.py backend/agronomy.py backend/main.py backend/schemas.py backend/service.py ./backend/
-COPY --chown=user:user models/class_indices.json models/convnext_tiny_khoi_int8.onnx ./models/
+COPY --chown=user:user models/class_indices.json models/convnext_tiny_field_v2_int8.onnx ./models/
 COPY --chown=user:user data/test ./data/test
 
 USER user

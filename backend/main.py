@@ -70,8 +70,11 @@ def _default_model_path() -> str:
     env_path = os.getenv("MODEL_PATH")
     if env_path:
         return env_path
-    int8_path = PROJECT_ROOT / "models" / "convnext_tiny_khoi_int8.onnx"
-    return str(int8_path) if int8_path.exists() else str(PROJECT_ROOT / "models" / "baseline1_simple_cnn.pth")
+    for candidate in ("convnext_tiny_field_v2_int8.onnx", "convnext_tiny_khoi_int8.onnx"):
+        p = PROJECT_ROOT / "models" / candidate
+        if p.exists():
+            return str(p)
+    return str(PROJECT_ROOT / "models" / "baseline1_simple_cnn.pth")
 
 
 service = ModelService(

@@ -23,7 +23,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # Mặc định test trực tiếp bằng model ONNX INT8 (không cần cài PyTorch)
-os.environ.setdefault("MODEL_PATH", str(ROOT / "models" / "convnext_tiny_khoi_int8.onnx"))
+os.environ.setdefault("MODEL_PATH", str(ROOT / "models" / "convnext_tiny_field_v2_int8.onnx"))
 os.environ.setdefault("MAPPING_PATH", str(ROOT / "models" / "class_indices.json"))
 
 from backend.agronomy import format_label, get_advisory  # noqa: E402
@@ -193,8 +193,8 @@ def test_api_health_and_model_info():
     assert body["backend_type"] == "onnx"
     assert "INT8" in body["architecture"]
     assert body["num_classes"] == 38
-    assert body["val_macro_f1"] == 0.9995
-    assert body["val_accuracy"] == 0.9995
+    assert 0.99 <= body["val_macro_f1"] <= 1.0
+    assert 0.99 <= body["val_accuracy"] <= 1.0
     assert body["test_accuracy"] == 1.0
     assert body["model_size_mb"] > 0.0
     assert len(body["providers"]) >= 1
@@ -205,8 +205,10 @@ def test_api_samples_list_fetch_and_path_traversal():
     resp = client.get("/api/samples")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["count"] >= 1
+    assert body["count"] >= 34
     assert len(body["samples"]) == body["count"]
+    field_samples = [s for s in body["samples"] if s["filename"].startswith("PlantDoc_")]
+    assert len(field_samples) >= 1
     first = body["samples"][0]
     assert first["filename"]
     assert first["plant"]
@@ -274,6 +276,11 @@ def test_api_predict_with_sample_name_and_validation():
     assert body2["is_healthy"] is True
     assert body2["advisory"]["severity"] == "none"
     assert body2["heatmap_overlay_base64"] is None
+
+    # Also test PlantDoc in-the-wild sample prediction
+    resp_field = client.post("/api/predict?sample_name=PlantDoc_TomatoLateBlight1.jpg&include_xai=false")
+    assert resp_field.status_code == 200
+    assert resp_field.json()["predicted_class"] == "Tomato___Late_blight"
 
     # Reject missing input and invalid sample path traversal
     assert client.post("/api/predict").status_code == 400

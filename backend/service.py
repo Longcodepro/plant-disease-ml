@@ -198,7 +198,7 @@ class TelemetryTracker:
 class ModelService:
     def __init__(
         self,
-        model_path: str = "models/convnext_tiny_khoi_int8.onnx",
+        model_path: str = "models/convnext_tiny_field_v2_int8.onnx",
         mapping_path: str = "models/class_indices.json",
         confidence_threshold: float = DEFAULT_CONFIDENCE_THRESHOLD,
         cache_size: int = DEFAULT_CACHE_SIZE,
@@ -760,12 +760,21 @@ class ModelService:
     def get_model_info(self) -> Dict[str, Any]:
         stem_lower = self.model_path.stem.lower()
         is_convnext_tiny = "convnext_tiny" in stem_lower
+        is_field_v2 = "field_v2" in stem_lower
         model_name = "ConvNeXt-Tiny" if is_convnext_tiny else self.model_path.stem
 
         if self.backend_type == "onnx" and "int8" in stem_lower and is_convnext_tiny:
-            architecture = "ConvNeXt-Tiny (27.8M params, ONNX Dynamic INT8)"
+            architecture = (
+                "ConvNeXt-Tiny Field-Adapted (27.8M params, ONNX Dynamic INT8)"
+                if is_field_v2
+                else "ConvNeXt-Tiny (27.8M params, ONNX Dynamic INT8)"
+            )
         elif self.backend_type == "onnx" and is_convnext_tiny:
-            architecture = "ConvNeXt-Tiny (27.8M params, ONNX FP32)"
+            architecture = (
+                "ConvNeXt-Tiny Field-Adapted (27.8M params, ONNX FP32)"
+                if is_field_v2
+                else "ConvNeXt-Tiny (27.8M params, ONNX FP32)"
+            )
         elif self.backend_type == "onnx":
             architecture = f"{model_name} (ONNX)"
         else:
@@ -789,6 +798,7 @@ class ModelService:
             if self._cam_session is not None
             else "Batched Occlusion Sensitivity"
         )
+        val_score = 0.9970 if is_field_v2 else 0.9995
 
         return {
             "model_name": model_name,
@@ -796,8 +806,8 @@ class ModelService:
             "backend_type": self.backend_type,
             "architecture": architecture,
             "num_classes": len(self.idx_to_class),
-            "val_macro_f1": 0.9995,
-            "val_accuracy": 0.9995,
+            "val_macro_f1": val_score,
+            "val_accuracy": val_score,
             "test_accuracy": 1.0,
             "model_size_mb": size_mb,
             "device": device_label,

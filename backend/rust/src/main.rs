@@ -264,7 +264,7 @@ async fn predict(
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let model_path = env::var("MODEL_PATH")
-        .unwrap_or_else(|_| "models/convnext_tiny_khoi_int8.onnx".to_string());
+        .unwrap_or_else(|_| "models/convnext_tiny_field_v2_int8.onnx".to_string());
     let mapping_path =
         env::var("MAPPING_PATH").unwrap_or_else(|_| "models/class_indices.json".to_string());
     let port: u16 = env::var("PORT")

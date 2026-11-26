@@ -28,6 +28,8 @@ import {
 import { XaiInspector } from "./XaiInspector";
 
 const ALL_PLANTS_FILTER = "Tất cả";
+type SampleSourceFilter = "all" | "field" | "lab";
+const isFieldSample = (sample: SampleItem): boolean => sample.filename.startsWith("PlantDoc_");
 
 /**
  * Interleave samples round-robin by (plant, condition) so the initial
@@ -90,6 +92,7 @@ export function DiagnoseView() {
   const [samples, setSamples] = useState<SampleItem[]>([]);
   const [samplesLoading, setSamplesLoading] = useState<boolean>(true);
   const [samplesError, setSamplesError] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<SampleSourceFilter>("all");
   const [selectedPlantFilter, setSelectedPlantFilter] = useState<string>(ALL_PLANTS_FILTER);
   const [canScrollLeft, setCanScrollLeft] = useState<boolean>(false);
   const [canScrollRight, setCanScrollRight] = useState<boolean>(false);
@@ -206,12 +209,18 @@ export function DiagnoseView() {
     handleFileSelected(droppedFile);
   };
 
+  const sourceFilteredSamples = useMemo(() => {
+    if (sourceFilter === "field") return samples.filter(isFieldSample);
+    if (sourceFilter === "lab") return samples.filter((s) => !isFieldSample(s));
+    return samples;
+  }, [samples, sourceFilter]);
+
   const plantOptions = useMemo(() => {
-    const uniquePlants = Array.from(new Set(samples.map((s) => s.plant))).sort((a, b) =>
+    const uniquePlants = Array.from(new Set(sourceFilteredSamples.map((s) => s.plant))).sort((a, b) =>
       a.localeCompare(b),
     );
     return [ALL_PLANTS_FILTER, ...uniquePlants];
-  }, [samples]);
+  }, [sourceFilteredSamples]);
 
   const activePlantFilter = plantOptions.includes(selectedPlantFilter)
     ? selectedPlantFilter
@@ -219,10 +228,10 @@ export function DiagnoseView() {
 
   const displayedSamples = useMemo(() => {
     if (activePlantFilter === ALL_PLANTS_FILTER) {
-      return interleaveSamples(samples);
+      return interleaveSamples(sourceFilteredSamples);
     }
-    return samples.filter((s) => s.plant === activePlantFilter);
-  }, [samples, activePlantFilter]);
+    return sourceFilteredSamples.filter((s) => s.plant === activePlantFilter);
+  }, [sourceFilteredSamples, activePlantFilter]);
 
   const updateScrollButtons = useCallback(() => {
     const el = sampleStripRef.current;
@@ -334,12 +343,42 @@ export function DiagnoseView() {
 
         {/* Horizontal Sample Strip */}
         <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-7">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Leaf className="h-4 w-4 text-emerald-600" />
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                Thư viện ảnh mẫu nhanh ({displayedSamples.length})
-              </h2>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <Leaf className="h-4 w-4 text-emerald-600" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Thư viện ảnh mẫu nhanh ({displayedSamples.length})
+                </h2>
+              </div>
+              {!samplesLoading && !samplesError && samples.some(isFieldSample) && (
+                <div
+                  role="group"
+                  aria-label="Chọn nguồn ảnh mẫu"
+                  className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100/70 p-0.5 text-[11px] font-semibold"
+                >
+                  {(
+                    [
+                      ["all", "Tất cả"],
+                      ["field", "Ngoài trời (PlantDoc)"],
+                      ["lab", "Phòng Lab"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSourceFilter(value)}
+                      className={`rounded-md px-2 py-0.5 transition-all ${
+                        sourceFilter === value
+                          ? "bg-white text-emerald-700 shadow-xs ring-1 ring-slate-200/80"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-1.5">
               {samplesError && (
@@ -445,7 +484,7 @@ export function DiagnoseView() {
                         loading="lazy"
                         className="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-slate-200/80"
                       />
-                      <div className="max-w-[132px]">
+                      <div className="max-w-[144px]">
                         <div className="flex items-center gap-1.5">
                           <span
                             className={`h-2 w-2 shrink-0 rounded-full ${
@@ -455,6 +494,11 @@ export function DiagnoseView() {
                           <span className="truncate text-xs font-bold text-slate-900">
                             {sample.plant}
                           </span>
+                          {isFieldSample(sample) && (
+                            <span className="shrink-0 rounded bg-sky-50 px-1 py-0.2 font-mono text-[9px] font-semibold text-sky-700 ring-1 ring-sky-200/70">
+                              Field
+                            </span>
+                          )}
                         </div>
                         <p className="mt-0.5 truncate text-[11px] text-slate-500">
                           {sample.condition}

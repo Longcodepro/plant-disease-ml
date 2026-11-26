@@ -499,19 +499,30 @@ def get_advisory(raw_label: str) -> Dict[str, Any]:
     return _keyword_fallback_advisory(plant, condition, raw_label)
 
 
-# Bảng ánh xạ tiền tố tên file mẫu PlantVillage trong `data/test/`
+# Bảng ánh xạ tiền tố tên file mẫu PlantVillage & PlantDoc trong `data/test/`
 _SAMPLE_FILENAME_PREFIXES: List[Tuple[str, str]] = [
     ("AppleCedarRust", "Apple___Cedar_apple_rust"),
     ("AppleScab", "Apple___Apple_scab"),
     ("AppleBlackRot", "Apple___Black_rot"),
     ("AppleHealthy", "Apple___healthy"),
+    ("BlueberryHealthy", "Blueberry___healthy"),
+    ("CherryHealthy", "Cherry_(including_sour)___healthy"),
     ("CornCommonRust", "Corn_(maize)___Common_rust_"),
     ("CornNorthernLeafBlight", "Corn_(maize)___Northern_Leaf_Blight"),
     ("CornGrayLeafSpot", "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot"),
     ("CornHealthy", "Corn_(maize)___healthy"),
+    ("GrapeBlackRot", "Grape___Black_rot"),
+    ("GrapeHealthy", "Grape___healthy"),
+    ("PeachHealthy", "Peach___healthy"),
+    ("BellPepperBacterialSpot", "Pepper,_bell___Bacterial_spot"),
+    ("BellPepperHealthy", "Pepper,_bell___healthy"),
     ("PotatoEarlyBlight", "Potato___Early_blight"),
     ("PotatoLateBlight", "Potato___Late_blight"),
     ("PotatoHealthy", "Potato___healthy"),
+    ("RaspberryHealthy", "Raspberry___healthy"),
+    ("SoybeanHealthy", "Soybean___healthy"),
+    ("SquashPowderyMildew", "Squash___Powdery_mildew"),
+    ("StrawberryHealthy", "Strawberry___healthy"),
     ("TomatoEarlyBlight", "Tomato___Early_blight"),
     ("TomatoLateBlight", "Tomato___Late_blight"),
     ("TomatoHealthy", "Tomato___healthy"),
@@ -528,9 +539,10 @@ _SAMPLE_FILENAME_PREFIXES: List[Tuple[str, str]] = [
 def infer_sample_metadata(filename: str) -> Tuple[str, str, bool]:
     """
     Suy luận (plant, condition, is_healthy) từ tên file mẫu trong `data/test/`.
-    Ví dụ: "AppleCedarRust1.JPG" -> ("Apple", "Cedar Apple Rust", False).
+    Hỗ trợ cả ảnh PlantVillage ("AppleCedarRust1.JPG") và PlantDoc ("PlantDoc_AppleCedarRust1.jpg").
     """
     stem = re.sub(r"\.[^.]+$", "", filename)
+    stem = re.sub(r"^PlantDoc_", "", stem, flags=re.IGNORECASE)
     for prefix, raw_label in _SAMPLE_FILENAME_PREFIXES:
         if stem.lower().startswith(prefix.lower()):
             return format_label(raw_label)

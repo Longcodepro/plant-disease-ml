@@ -56,7 +56,7 @@ cp "$ROOT_DIR/backend/__init__.py" \
    "$ROOT_DIR/backend/schemas.py" \
    "$ROOT_DIR/backend/service.py" "$SPACE_DIR/backend/"
 cp "$ROOT_DIR/models/class_indices.json" \
-   "$ROOT_DIR/models/convnext_tiny_khoi_int8.onnx" "$SPACE_DIR/models/"
+   "$ROOT_DIR/models/convnext_tiny_field_v2_int8.onnx" "$SPACE_DIR/models/"
 cp "$ROOT_DIR/data/test/"* "$SPACE_DIR/data/test/"
 
 # Hugging Face Spaces YAML metadata (Docker SDK trên cổng 7860)
