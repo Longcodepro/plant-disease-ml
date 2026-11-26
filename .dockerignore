@@ -1,0 +1,17 @@
+.git/
+data/*
+!data/test/
+!data/test/*
+hoc_tap_ml/
+notebooks/
+backend/rust/
+frontend/
+tests/
+models/*.pth
+models/convnext_tiny_khoi.onnx
+__pycache__/
+.pytest_cache/
+.venv/
+*.tar.gz
+*.zip
+.DS_Store
