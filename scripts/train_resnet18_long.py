@@ -91,7 +91,8 @@ def main():
         data_dir=data_dir,
         batch_size=args.batch_size,
         num_workers=4 if device.type == "cuda" else 2,
-        pin_memory=(device.type == "cuda")
+        pin_memory=(device.type == "cuda"),
+        dataset_version=args.dataset
     )
     num_classes = len(idx_to_class)
 

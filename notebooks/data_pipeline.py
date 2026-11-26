@@ -49,6 +49,41 @@ def get_train_transforms(image_size: int = 224) -> transforms.Compose:
         transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
     ])
 
+
+def get_dataset1_train_transforms(image_size: int = 224) -> transforms.Compose:
+    """
+    Pipeline Tiền Xử Lý & Data Augmentation TỐI ƯU RIÊNG CHO DATASET 1 (Chống Data Leakage & Học Vẹt):
+    - RandomResizedCrop(scale 0.6 - 1.0): Zoom cận cảnh vào vết bệnh, cắt bỏ viền lá để mô hình không "nhớ mặt" cả chiếc lá.
+    - RandomRotation (30 deg) & RandomPerspective: Biến dạng 3D góc chụp.
+    - ColorJitter mạnh: Khử phụ thuộc vào màu nền chụp trong nhà kính.
+    - RandomErasing (Cutout, p=0.3): Che ngẫu nhiên một mảng nhỏ trên lá, ép mạng nơ-ron phải tìm
+      nhiều dấu hiệu bệnh khác nhau thay vì dựa vào 1 vết sẹo/vết rách đặc trưng của chiếc lá đó.
+    """
+    return transforms.Compose([
+        transforms.RandomResizedCrop(
+            size=image_size,
+            scale=(0.6, 1.0),
+            ratio=(0.85, 1.15)
+        ),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomVerticalFlip(p=0.3),
+        transforms.RandomRotation(degrees=30),
+        transforms.ColorJitter(
+            brightness=0.2,
+            contrast=0.2,
+            saturation=0.2,
+            hue=0.05
+        ),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        transforms.RandomErasing(
+            p=0.3,
+            scale=(0.02, 0.2),
+            ratio=(0.3, 3.3),
+            value="random"
+        )
+    ])
+
 def get_eval_transforms(image_size: int = 224) -> transforms.Compose:
     """
     Deterministic Preprocessing Pipeline dành cho tập Validation & Test (và Production API).
@@ -83,7 +118,8 @@ def build_dataloaders(
     batch_size: int = 64,
     image_size: int = 224,
     num_workers: int = 4,
-    pin_memory: bool = False
+    pin_memory: bool = False,
+    dataset_version: Optional[str] = None
 ) -> Tuple[DataLoader, DataLoader, Dict[int, str], Optional[torch.Tensor]]:
     """
     Factory function xây dựng DataLoaders chuẩn mực cho Train và Validation.
@@ -94,10 +130,14 @@ def build_dataloaders(
     if not train_path.exists() or not valid_path.exists():
         raise FileNotFoundError(f"Không tìm thấy thư mục {train_path} hoặc {valid_path}")
 
-    # Áp dụng transforms độc lập cho Train và Valid
+    # Tự động chọn transform tối ưu:
+    # Nếu là Dataset 1 (có data leakage), kích hoạt pipeline đặc trị chống học vẹt (Cutout, Tight Zoom, Color Shift)
+    is_v1 = (dataset_version == "v1") or (Path(data_dir).name == "data" and "v2" not in str(data_dir))
+    train_tf = get_dataset1_train_transforms(image_size=image_size) if is_v1 else get_train_transforms(image_size=image_size)
+
     train_dataset = datasets.ImageFolder(
         root=str(train_path),
-        transform=get_train_transforms(image_size=image_size)
+        transform=train_tf
     )
     valid_dataset = datasets.ImageFolder(
         root=str(valid_path),
