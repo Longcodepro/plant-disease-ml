@@ -9,6 +9,7 @@ frontend/
 tests/
 models/*.pth
 models/convnext_tiny_khoi.onnx
+models/convnext_tiny_field_v2.onnx
 __pycache__/
 .pytest_cache/
 .venv/

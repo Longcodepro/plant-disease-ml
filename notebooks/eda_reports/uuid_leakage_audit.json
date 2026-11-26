@@ -8,7 +8,7 @@
   "valid_uuid_overlap_pct": 58.87,
   "leaked_valid_images": 11083,
   "leaked_valid_images_pct": 63.07,
-  "clean_split_created": "/Users/phamgiakhoi/Dự án/ML/plant-disease-ml/data/clean_split",
+  "clean_split_created": "/tmp/data/clean_split",
   "per_class": [
     {
       "class_name": "Apple___Apple_scab",

@@ -30,9 +30,11 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 
-# Large model binaries (>100MB GitHub limit — lưu trên Google Drive / Release)
-models/convnext_tiny_khoi.pth
+# Large model binaries (>100MB GitHub limit — lưu trên máy local / Release)
+models/*.pth
+!models/baseline1_simple_cnn.pth
 models/convnext_tiny_khoi.onnx
+models/convnext_tiny_field_v2.onnx
 
 # Mac & IDE
 .DS_Store

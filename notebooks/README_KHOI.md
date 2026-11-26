@@ -65,6 +65,10 @@
 | **Chênh lệch cải thiện** | Giữ nguyên | Không mất tổng quát Lab | **+42.38%** (**2.37x**) | **+38.13%** | **+43.72%** (**2.55x**) |
 
 - **Avg CPU Latency trên Kaggle (`CPUExecutionProvider`):** **`60.31 ms/ảnh`**.
+- **Đo thực tế trên Apple M2 CPU (ARM64, ORT Dynamic INT8 `32.27 MB`):**
+  - **Latency & Throughput:** **`24.38 ms/ảnh`** (`p50 = 23.80 ms`, `p95 = 26.84 ms`) → **`41.0 FPS`** (tương đương bản gốc `23.85 ms` / `41.9 FPS`).
+  - **Kiểm chứng `data/test` (`33` ảnh):** khớp `33/33` (`100%`) với bản gốc, độ tin cậy trung bình tăng từ `90.79%` → **`91.64%`**.
+  - **Kiểm chứng `clean_split/valid` (`760` mẫu rải đều 38 lớp — 20 ảnh/lớp):** **`756/760 (99.47%)`** (giữ vững cả 10 lớp không xuất hiện trong PlantDoc).
 - **Top 5 cặp nhầm lẫn phổ biến nhất sau thích nghi miền:**
   - `Corn_(maize)___Northern_Leaf_Blight` → `Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot` (`7` ảnh)
   - `Potato___Early_blight` → `Potato___Late_blight` (`4` ảnh)
