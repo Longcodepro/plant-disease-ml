@@ -23,18 +23,26 @@ import argparse
 import json
 import os
 import random
+import re
+import shutil
 from collections import defaultdict
 from pathlib import Path
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+_AUG_SUFFIX_RE = re.compile(r"(?:_flip(?:LR|TB)|_\d+deg|_new[A-Za-z0-9]+)+$", re.IGNORECASE)
 
 
 def extract_group_id(filename: str) -> str:
-    """Lấy mã ảnh gốc (UUID hoặc tiền tố trước '___' và trước hậu tố augment)."""
+    """
+    Lấy mã lá gốc thống nhất để gom mọi biến thể xoay/lật cùng nguồn:
+    - Với file chuẩn `<uuid>___<leaf_id>[_flipLR|_180deg|...]`: bóc `<leaf_id>` chuẩn hóa
+      (gom được cả các ảnh trùng bị gán 2 UUID khác nhau).
+    - Với file thiếu `<uuid>___` (như `Corn_(maize)___Common_rust_/RS_Rust 2390_flipLR.JPG`):
+      cắt bỏ hậu tố augment để gom cùng ảnh gốc `RS_Rust 2390`.
+    """
     stem = Path(filename).stem
-    if "___" in stem:
-        return stem.split("___", 1)[0]
-    return stem
+    rhs = stem.split("___", 1)[1] if "___" in stem else stem
+    return _AUG_SUFFIX_RE.sub("", rhs)
 
 
 def audit_and_optionally_split(
@@ -60,6 +68,8 @@ def audit_and_optionally_split(
     per_class = []
 
     rng = random.Random(seed)
+    if build_clean_split and clean_dir is not None and clean_dir.exists():
+        shutil.rmtree(clean_dir)
 
     for cls in classes:
         tr_groups: dict[str, list[Path]] = defaultdict(list)
