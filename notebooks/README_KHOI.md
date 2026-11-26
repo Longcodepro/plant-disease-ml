@@ -27,57 +27,47 @@
 
 ---
 
-## 3. Giai đoạn 3 — Clean Group-Split + Mixed-Domain Adaptation (`04_convnext_tiny_domain_adaptation.ipynb`)
+## 3. Giai đoạn 3 & 4 — Clean Group-Split + Mixed-Domain Adaptation (`04_convnext_tiny_domain_adaptation.ipynb`)
 
-- **Môi trường huấn luyện:** **Kaggle Notebook (`GPU T4 x2`)**, `4 DataLoader workers` (`persistent_workers=True`), dữ liệu tạm trên `/tmp/data`, xuất artifacts ra `/kaggle/working/models/`.
+- **Môi trường huấn luyện:** **Kaggle Notebook (`GPU T4 x2`)**, code tái lập đầy đủ ở commit `1cfe29c`.
 - **Dữ liệu chống rò rỉ (`0%` UUID leakage):**
   - Tách lại PlantVillage theo cụm UUID gốc (`clean_split`): **`70,257` ảnh train / `17,610` ảnh valid**.
-  - Trộn với `PlantDoc/train` (`2,342` ảnh × `10x` oversample) → **`93,677` mẫu train/epoch** (`BATCH_SIZE = 64`), đánh giá song song trên `Lab Valid (17,610)` và `PlantDoc Field Test (236)`.
-- **Augmentation ngoài đồng ruộng:** `RandomResizedCrop(224, scale=(0.65, 1.0))`, `RandomHorizontalFlip(0.5)`, `RandomVerticalFlip(0.2)`, `RandomRotation(25°)`, `RandomPerspective(0.2, p=0.3)`, `ColorJitter(0.25)`, `RandomErasing(p=0.25)`.
-- **Cấu hình tối ưu hóa:** Khởi tạo từ `ConvNeXt_Tiny_Weights.DEFAULT` (ImageNet), **Differential LR** (`backbone = 1e-4`, `head = 5e-4`), `AdamW (weight_decay = 1e-2)`, `CosineAnnealingLR`, `Label Smoothing = 0.1`, `AMP`, `8 epochs`. Tiêu chí chọn checkpoint tốt nhất: `0.4 * Lab_Macro_F1 + 0.6 * Field_Macro_F1`.
+  - **Stage 1 (Mixed-Domain, 8 epochs):** Trộn `Clean PlantVillage/train` (`70,257`) + `PlantDoc/train` (`2,342 × 10`), ImageNet `ConvNeXt_Tiny_Weights.DEFAULT` + Differential LR (`backbone = 1e-4`, `head = 5e-4`), `CosineAnnealingLR`, `Label Smoothing = 0.1`, `AMP`. Kết thúc Stage 1 đạt **`69.92%` Field Acc / `68.86%` Macro-F1** trên `PlantDoc Test` *(ở lần chạy thăm dò trước đó trên Interactive Draft đạt `70.76% / 69.75%`)*.
+  - **Stage 2 (Chuyên sâu PlantDoc, 8 epochs):** `22,400` mẫu/epoch qua `WeightedRandomSampler` (**80%** chia đều 28 lớp `PlantDoc/train` + **20%** replay 200 ảnh/lớp × 38 lớp `Clean PlantVillage` để chống quên 10 lớp ngoài PlantDoc), Differential LR (`4e-5` / `2e-4`), Linear Warmup + Cosine, **CutMix (`0.35`) + MixUp (`0.25`)** 5 epoch đầu + **3 epoch Cooldown** không mix, **Model EMA (`decay = 0.995`)**.
 
-### Tiến trình Stage 1 — Domain Adaptation hỗn hợp (`8` epochs, Kaggle `GPU T4 x2`)
-
-| Epoch | Thời gian | Train Acc | Lab Clean Valid Acc | PlantDoc Test Top-1 | PlantDoc Test Macro-F1 | Ghi chú |
-|---:|---:|---:|---:|---:|---:|---|
-| **1/8** | 657.1s | 93.34% | 99.40% | 65.68% | 62.54% | ⭐ Lưu best Stage 1 |
-| **2/8** | 621.5s | 98.41% | 99.23% | 67.37% | 59.08% | — |
-| **3/8** | 632.6s | 99.01% | 99.65% | 69.07% | 66.25% | ⭐ Lưu best Stage 1 |
-| **4/8** | 629.5s | 99.23% | 99.49% | 67.80% | 64.42% | — |
-| **5/8** | 626.1s | 99.42% | 99.60% | 69.49% | 66.59% | ⭐ Lưu best Stage 1 |
-| **6/8** | 662.1s | 99.60% | 99.80% | 69.07% | 64.29% | — |
-| **7/8** | 654.1s | 99.73% | 99.87% | 69.49% | 68.66% | ⭐ Lưu best Stage 1 |
-| **8/8** | 652.7s | 99.75% | **99.89%** | **70.76%** | **69.75%** | ⭐ Best Stage 1 (`convnext_tiny_field_v2_stage1.pth`) |
-
----
-
-## 4. Giai đoạn 4 — Chuyên Sâu PlantDoc (`80%` PlantDoc Balanced + CutMix/MixUp + EMA)
-
-- **Lấy mẫu cân bằng:** `22,400` mẫu/epoch qua `WeightedRandomSampler` (`80%` chia đều 28 lớp `PlantDoc/train` + `20%` chia đều 38 lớp `Clean PlantVillage` replay 200 ảnh/lớp để chống quên 10 lớp ngoài PlantDoc).
-- **Kỹ thuật:** Khởi tạo từ Best Stage 1 (`70.76% / 69.75%`), Differential LR (`backbone = 4e-5`, `head = 2e-4`, `weight_decay = 2e-2`), Linear Warmup `1` epoch + Cosine Decay, `Label Smoothing = 0.08`, Grad Clip `1.0`, **CutMix (`0.35`) + MixUp (`0.25`)** trong 9 epoch đầu + **3 epoch Cooldown** không mix, **Model EMA (`decay = 0.995`)**.
+### Tiến trình Stage 2 chính thức trên Kaggle (`PlantDoc-S2`, commit `1cfe29c`)
 
 | Epoch | Thời gian | Mix | Lab Clean Valid Acc | PlantDoc Test Top-1 | PlantDoc Test Macro-F1 | Ghi chú |
 |---:|---:|:---:|---:|---:|---:|---|
-| **01/12** | 336.3s | ON | 99.86% | 70.34% | 69.50% | ⭐ Lưu EMA |
-| **02/12** | 331.3s | ON | 99.86% | 71.19% | 70.89% | ⭐ Lưu EMA (vượt Stage 1) |
-| **03/12 ⭐** | 332.5s | ON | **99.85%** | **72.88%** | **72.41%** | **Best tổng thể (`convnext_tiny_field_v3.pth` → cập nhật `v2`)** |
-| **04/12** | 337.6s | ON | 99.81% | 72.46% | 71.66% | — |
-| **05/12** | 339.5s | ON | 99.81% | 72.46% | 71.86% | — |
-| **06/12** | 339.3s | ON | 99.80% | 70.76% | 70.08% | — |
-| **07/12** | 339.5s | ON | 99.81% | 70.76% | 70.54% | — |
-| **08/12** | 338.0s | ON | 99.82% | 71.19% | 70.39% | — |
-| **09/12** | 332.6s | ON | 99.84% | 71.61% | 70.81% | — |
-| **10/12** | 331.7s | OFF | 99.86% | 71.61% | 70.74% | Cooldown |
-| **11/12** | 326.8s | OFF | 99.87% | 72.03% | 71.02% | Cooldown |
-| **12/12** | 324.7s | OFF | 99.86% | 72.03% | 71.06% | Cooldown |
+| **01/08** | 320.8s | ON | 99.71% | 71.61% | 70.71% | ⭐ Lưu EMA |
+| **02/08** | 344.8s | ON | 99.74% | 72.03% | 70.76% | ⭐ Lưu EMA |
+| **03/08** | 334.8s | ON | 99.76% | 71.61% | 70.32% | — |
+| **04/08** | 342.5s | ON | 99.77% | **73.73%** | 67.47% | Peak Accuracy đơn lẻ |
+| **05/08 ⭐** | 337.4s | ON | **99.70%** | **73.31%** | **71.65%** | **Best EMA (`convnext_tiny_field_v3.pth` → cập nhật `v2`)** |
+| **06/08** | 337.2s | OFF | 99.72% | **73.73%** | 69.57% | Cooldown |
+| **07/08** | 338.0s | OFF | 99.77% | 72.88% | 68.97% | Cooldown |
+| **08/08** | 356.4s | OFF | **99.78%** | 72.46% | 68.38% | Cooldown |
 
-### Tổng hợp bước nhảy thực nghiệm (`ConvNeXt-Tiny` trên `PlantDoc Test` 236 ảnh, 38 lớp đầy đủ)
+- **Flip-TTA (PyTorch, trên `convnext_tiny_field_v3.pth`):** **`175/236 (74.15%)`**. *(Ở lần chạy thăm dò 12 epochs trước đó từng ghi nhận `72.88% / 72.41%` và Flip-TTA `178/236 = 75.42%`).*
 
-| Mốc mô hình | Lab Clean Valid Acc | PlantDoc Top-1 (Single View) | PlantDoc Top-1 (Flip-TTA) | PlantDoc Macro-F1 |
-|---|---:|---:|---:|---:|
-| **Baseline Lab (`03_convnext_tiny_khoi`)** | 99.95% *(gốc)* / 100% *(unseen UUID)* | 30.93% (`73/236`) | — | 28.22% |
-| **Stage 1 (`DA 8/8` Mixed-Domain)** | **99.89%** | 70.76% | — | 69.75% |
-| **Stage 2 (`PlantDoc-S2 03/12` + EMA)** | **99.85%** | **72.88%** | **75.42%** (`178/236`) | **72.41%** |
+---
 
-### Kết quả xuất ONNX INT8 & Đánh giá cuối (`plantdoc_domain_shift_v2.json`)
-- *Đang chờ chạy Cell `# 4` trên Kaggle để xuất `convnext_tiny_field_v2.onnx`, `convnext_tiny_field_v2_int8.onnx` và báo cáo `plantdoc_domain_shift_v2.json`.*
+## 4. Kết Quả Xuất ONNX INT8 & Đánh Giá Chính Thức (`plantdoc_domain_shift_v2.json`)
+
+- **Xuất & Nén (`scripts/quantize_onnx.py`):**
+  - `convnext_tiny_field_v2.onnx` (FP32): **`106.3 MB`** → `convnext_tiny_field_v2_int8.onnx` (Dynamic INT8): **`32.3 MB`** (giảm `3.29x`).
+- **Benchmark chính thức trên `PlantDoc Test` (`236` ảnh ngoài trời, `27` lớp chung, `38` lớp đầu ra đầy đủ):**
+
+| Mốc mô hình (`ONNX INT8`) | Dung lượng | Lab Clean Valid Acc | PlantDoc Top-1 | PlantDoc Top-3 | PlantDoc Macro-F1 |
+|---|---:|---:|---:|---:|---:|
+| **Baseline Lab (`convnext_tiny_khoi_int8.onnx`)** | 32.3 MB | 99.95% *(gốc)* / 100% *(unseen UUID)* | 30.93% (`73/236`) | 54.24% (`128/236`) | 28.22% |
+| **Domain Adapted (`convnext_tiny_field_v2_int8.onnx`)** | **32.3 MB** | **99.70%** *(PyTorch EMA)* | **73.31%** (`173/236`) | **92.37%** (`218/236`) | **71.94%** |
+| **Chênh lệch cải thiện** | Giữ nguyên | Không mất tổng quát Lab | **+42.38%** (**2.37x**) | **+38.13%** | **+43.72%** (**2.55x**) |
+
+- **Avg CPU Latency trên Kaggle (`CPUExecutionProvider`):** **`60.31 ms/ảnh`**.
+- **Top 5 cặp nhầm lẫn phổ biến nhất sau thích nghi miền:**
+  - `Corn_(maize)___Northern_Leaf_Blight` → `Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot` (`7` ảnh)
+  - `Potato___Early_blight` → `Potato___Late_blight` (`4` ảnh)
+  - `Tomato___Bacterial_spot` → `Tomato___Septoria_leaf_spot` (`4` ảnh)
+  - `Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot` → `Corn_(maize)___Northern_Leaf_Blight` (`3` ảnh)
+  - `Potato___Late_blight` → `Potato___Early_blight` (`3` ảnh)
