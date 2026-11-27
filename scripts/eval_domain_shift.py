@@ -153,7 +153,8 @@ def evaluate_on_plantdoc(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Đánh giá Domain Shift trên PlantDoc Test")
     parser.add_argument("--model", type=Path, default=Path("models/convnext_tiny_khoi_int8.onnx"))
-    parser.add_argument("--data", type=Path, default=Path("data/plantdoc/test"))
+    default_data = Path("data_plantdoc/test") if Path("data_plantdoc/test").exists() else Path("data/plantdoc/test")
+    parser.add_argument("--data", type=Path, default=default_data)
     parser.add_argument("--mapping", type=Path, default=Path("models/class_indices.json"))
     parser.add_argument("--out", type=Path, default=Path("notebooks/eda_reports/plantdoc_domain_shift.json"))
     args = parser.parse_args()

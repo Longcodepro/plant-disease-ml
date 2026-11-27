@@ -1,10 +1,10 @@
-# Dữ liệu ảnh train/valid và file nén nặng (giữ lại data/test ~548KB làm ảnh mẫu cho bản deploy)
-data/*
-!data/test/
-!data/test/*
-data_v1*
+# Dữ liệu ảnh train/valid và file nén nặng (giữ lại data_v1/test ~548KB làm ảnh mẫu cho bản deploy)
+data_v1/*
+!data_v1/test/
+!data_v1/test/*
 data_v2/
 data_v3/
+data_plantdoc/
 archive.zip
 dataset.zip
 *.zip
