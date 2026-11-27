@@ -1,27 +1,33 @@
 #!/usr/bin/env python3
+"""
+Tạo Notebook 07 theo chuẩn báo cáo khoa học & thực chiến công nghiệp (Publication / Kaggle Master Style).
+- Không dùng emoji bừa bãi.
+- Giao diện đồ thị chuẩn seaborn / publication (despine, subtle grids, font sạch).
+- Trực quan hóa Pareto Frontier, Training Dynamics, OOD Domain Shift.
+- Bảng thống kê có format số liệu chuẩn xác.
+"""
+
 import json
 from pathlib import Path
 import nbformat as nbf
 
 nb = nbf.v4.new_notebook()
 
-# Cell 1: Markdown Title
-c1 = nbf.v4.new_markdown_cell("""# 📊 Đánh Giá Toàn Diện & Trực Quan Hóa So Sánh Các Mô Hình
-### Dự án: Chẩn đoán bệnh trên lá cây nông nghiệp (Plant Disease ML)
-**Tác giả:** Long (Kiến trúc ResNet-18) & Khôi (Kiến trúc ConvNeXt-Tiny)  
-**Tài liệu tham khảo:**  
-* *Designing Machine Learning Systems* (Chip Huyen) — Chương 5 (Data Leakage) & Chương 8 (Data Distribution Shifts)  
-* *Hands-On Machine Learning* (Aurélien Géron) — Chương 11, 14 (Training Deep Neural Nets, Transfer Learning)
+# -------------------------------------------------------------
+# Cell 1: Tiêu đề chuẩn báo cáo kỹ thuật (Technical Header)
+# -------------------------------------------------------------
+c1 = nbf.v4.new_markdown_cell("""# Comprehensive Model Benchmark & Ablation Study
+**Project:** Agricultural Plant Disease Classification (`plant-disease-ml`)  
+**Architectures:** ResNet-18 (Long) vs. ConvNeXt-Tiny (Khôi)  
+**Evaluated Datasets:** 
+* `data_v1` (Raw 80/20 Random Split - 65.26% Data Leakage)
+* `data_v2` (Physical Leaf-Grouped Split - 0% Leakage)
+* `data_v3` (UUID Group Deduplication Clean Split - 0% Leakage)
+* `data_plantdoc` (Out-of-Distribution Field Test Set - Natural Conditions)""")
 
----
-
-## 🎯 Mục Tiêu Của Notebook Này:
-1. **Lịch sử từng Epoch (Learning Curves):** So sánh quá trình hội tụ (Loss, Accuracy, Macro-F1) qua từng epoch của 3 bộ dữ liệu (v1, v2, v3).
-2. **Hiệu năng Phần cứng (Hardware Benchmark):** Đối chiếu tốc độ và thời gian huấn luyện giữa Google Colab (GPU T4) và Máy cá nhân (Intel i5-12450HX + NVIDIA RTX 3050 Laptop).
-3. **Thử lửa Thực tế Ngoài Đồng Ruộng (Domain Shift):** Phân tích mức độ sụt giảm hiệu năng khi đưa mô hình từ phòng lab (PlantVillage) ra môi trường thực tế (PlantDoc).
-4. **Đánh đổi Hiệu năng & Kích thước (MLOps Trade-off):** Lựa chọn mô hình tối ưu nhất để triển khai trên thiết bị bay không người lái (Drone) và điện thoại thông minh của nông dân.""")
-
-# Cell 2: Code Imports & Load Data
+# -------------------------------------------------------------
+# Cell 2: Imports & Global Plot Styling
+# -------------------------------------------------------------
 c2 = nbf.v4.new_code_cell("""import json
 from pathlib import Path
 import numpy as np
@@ -29,176 +35,278 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# Thiết lập phong cách trực quan hóa sạch sẽ, chuẩn khoa học
-plt.style.use('seaborn-v0_8-whitegrid' if 'seaborn-v0_8-whitegrid' in plt.style.available else 'default')
-plt.rcParams['font.sans-serif'] = 'DejaVu Sans'
-plt.rcParams['axes.edgecolor'] = '#cccccc'
-plt.rcParams['axes.linewidth'] = 0.8
-
-# 1. Đọc dữ liệu chi tiết từ file chuẩn hóa models/training_history_benchmarks.json
-ROOT_DIR = Path.cwd().parent if Path.cwd().name == 'notebooks' else Path.cwd()
-json_path = ROOT_DIR / 'models' / 'training_history_benchmarks.json'
-csv_path = ROOT_DIR / 'models' / 'epoch_history.csv'
-
-with open(json_path, encoding='utf-8') as f:
-    benchmarks_data = json.load(f)
-
-df_epochs = pd.read_csv(csv_path)
-print(f"✅ Đã nạp thành công lịch sử {len(df_epochs)} epochs của 3 mô hình ResNet-18!")
-df_epochs[['model', 'epoch', 'phase', 'duration_s', 'train_loss', 'val_loss', 'train_acc', 'val_acc', 'val_macro_f1']].head(6)""")
-
-# Cell 3: Markdown Section 1
-c3 = nbf.v4.new_markdown_cell("""## 1. So Sánh Quá Trình Huấn Luyện (Learning Curves Qua Từng Epoch)
-Quá trình huấn luyện gồm 2 giai đoạn (2-Phase Transfer Learning):
-* **Phase 1 (Epoch 1 - 2):** Warmup Head (đóng băng backbone, chỉ học tầng phân loại mới).
-* **Phase 2 (Epoch 3 - 6):** Fine-tuning toàn bộ mạng với learning rate cosine annealing nhỏ.""")
-
-# Cell 4: Code Plot 1
-c4 = nbf.v4.new_code_cell("""fig, axes = plt.subplots(1, 2, figsize=(15, 5), dpi=120)
-
-colors = {'resnet18_v1': '#e74c3c', 'resnet18_v2': '#2980b9', 'resnet18_v3': '#27ae60'}
-labels = {
-    'resnet18_v1': 'Model v1 (Random Split - 65% Rò rỉ)',
-    'resnet18_v2': 'Model v2 (Leaf-Grouped - 0% Rò rỉ)',
-    'resnet18_v3': 'Model v3 (UUID Clean Split - 0% Rò rỉ)'
-}
-
-# Subplot 1: Validation Loss Curve
-for model_key, group in df_epochs.groupby('model'):
-    axes[0].plot(group['epoch'], group['val_loss'], marker='o', linewidth=2.2, 
-                 color=colors[model_key], label=labels[model_key])
-axes[0].axvline(x=2.5, color='#7f8c8d', linestyle='--', alpha=0.7)
-axes[0].text(1.5, 1.18, 'Phase 1: Warmup', ha='center', fontsize=10, color='#555555', fontweight='bold')
-axes[0].text(4.5, 1.18, 'Phase 2: Fine-Tuning', ha='center', fontsize=10, color='#555555', fontweight='bold')
-axes[0].set_title('Validation Loss Theo Từng Epoch', fontsize=13, fontweight='bold', pad=12)
-axes[0].set_xlabel('Epoch', fontsize=11)
-axes[0].set_ylabel('Loss', fontsize=11)
-axes[0].set_xticks(range(1, 7))
-axes[0].legend(frameon=True, facecolor='white', framealpha=0.9)
-
-# Subplot 2: Validation Macro F1-Score
-for model_key, group in df_epochs.groupby('model'):
-    axes[1].plot(group['epoch'], group['val_macro_f1'] * 100, marker='s', linewidth=2.2, 
-                 color=colors[model_key], label=labels[model_key])
-axes[1].axvline(x=2.5, color='#7f8c8d', linestyle='--', alpha=0.7)
-axes[1].set_title('Validation Macro F1-Score (%)', fontsize=13, fontweight='bold', pad=12)
-axes[1].set_xlabel('Epoch', fontsize=11)
-axes[1].set_ylabel('Macro F1 (%)', fontsize=11)
-axes[1].set_xticks(range(1, 7))
-axes[1].legend(frameon=True, facecolor='white', framealpha=0.9)
-
-plt.tight_layout()
-plt.show()""")
-
-# Cell 5: Markdown Section 2
-c5 = nbf.v4.new_markdown_cell("""## 2. Hiệu Năng Phần Cứng: So Sánh Google Colab T4 vs Local RTX 3050 Laptop
-* **Google Colab (Free T4):** 2 vCPU ảo, ổ đĩa mạng chậm, dễ bị nghẽn nạp ảnh (I/O Bottleneck).
-* **Local Laptop (Intel i5-12450HX + RTX 3050 6GB):** 12 luồng CPU giải mã ảnh cực nhanh + ổ NVMe SSD + nhân Tensor Cores tăng tốc FP16.""")
-
-# Cell 6: Code Plot 2
-c6 = nbf.v4.new_code_cell("""fig, ax = plt.subplots(figsize=(10, 5), dpi=120)
-
-avg_duration = df_epochs.groupby(['model', 'hardware'])['duration_s'].mean().reset_index()
-avg_duration['minutes'] = avg_duration['duration_s'] / 60.0
-avg_duration['display_name'] = avg_duration['model'].map({
-    'resnet18_v1': 'Model v1\\n(Colab T4)',
-    'resnet18_v2': 'Model v2\\n(Colab T4)',
-    'resnet18_v3': 'Model v3\\n(Local RTX 3050)'
+# Thiết lập chuẩn đồ thị xuất bản khoa học (Publication Quality Styling)
+sns.set_theme(style="whitegrid")
+plt.rcParams.update({
+    "font.family": "sans-serif",
+    "font.size": 10,
+    "axes.labelsize": 11,
+    "axes.titlesize": 12,
+    "axes.titleweight": "bold",
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+    "legend.fontsize": 10,
+    "figure.titlesize": 13,
+    "axes.edgecolor": "#cbd5e1",
+    "axes.linewidth": 1.0,
+    "grid.color": "#f1f5f9",
+    "grid.linestyle": "--",
+    "grid.alpha": 0.8
 })
 
-bar_colors = ['#e67e22', '#3498db', '#2ecc71']
-bars = ax.bar(avg_duration['display_name'], avg_duration['minutes'], color=bar_colors, width=0.55, edgecolor='#333333', linewidth=1)
+ROOT_DIR = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
+json_path = ROOT_DIR / "models" / "training_history_benchmarks.json"
+csv_path = ROOT_DIR / "models" / "epoch_history.csv"
 
-for bar in bars:
-    yval = bar.get_height()
-    ax.text(bar.get_x() + bar.get_width()/2.0, yval + 0.25, f"{yval:.1f} phút/epoch", ha='center', va='bottom', fontsize=11, fontweight='bold')
+with open(json_path, encoding="utf-8") as f:
+    benchmarks_data = json.load(f)
 
-ax.set_title('Thời Gian Huấn Luyện Trung Bình Mỗi Epoch (Phút)', fontsize=13, fontweight='bold', pad=15)
-ax.set_ylabel('Thời gian (Phút / Epoch)', fontsize=11)
-ax.set_ylim(0, 12)
-plt.tight_layout()
-plt.show()""")
+df_epochs = pd.read_csv(csv_path)""")
 
-# Cell 7: Markdown Section 3
-c7 = nbf.v4.new_markdown_cell("""## 3. Thử Lửa Ngoài Đồng Ruộng: Hiện Tượng Sụp Đổ Miền Dữ Liệu (Domain Shift)
-Đo lường độ lệch phân phối giữa:
-* **Phòng Thí Nghiệm (PlantVillage):** Nền trơn, ánh sáng nhân tạo studio chuẩn mực.
-* **Đồng Ruộng Thực Tế (PlantDoc):** 236 ảnh chụp thực tế ngoài trời có đất, nắng, cỏ dại và tay người cầm lá.""")
+# -------------------------------------------------------------
+# Cell 3: Executive Summary Leaderboard Table
+# -------------------------------------------------------------
+c3 = nbf.v4.new_markdown_cell("""## 1. Executive Summary & Model Leaderboard""")
 
-# Cell 8: Code Plot 3
-c8 = nbf.v4.new_code_cell("""models_list = ['ConvNeXt-Tiny (Khôi)', 'ResNet-18 v2 (Leaf-Grouped)', 'ResNet-18 v3 (UUID Clean)']
-lab_f1 = [99.95, 98.95, 99.80]
-plantdoc_f1 = [29.03, 27.81, 26.39]
-plantdoc_top3 = [54.66, 47.88, 50.00]
-
-x = np.arange(len(models_list))
-width = 0.28
-
-fig, ax = plt.subplots(figsize=(12, 6), dpi=120)
-
-rects1 = ax.bar(x - width, lab_f1, width, label='Phòng Lab (PlantVillage) Macro-F1', color='#2ecc71', edgecolor='#333333')
-rects2 = ax.bar(x, plantdoc_f1, width, label='Ngoài Đồng Ruộng (PlantDoc) Top-1 F1', color='#e74c3c', edgecolor='#333333')
-rects3 = ax.bar(x + width, plantdoc_top3, width, label='Ngoài Đồng Ruộng (PlantDoc) Top-3 Acc', color='#f39c12', edgecolor='#333333')
-
-for rect in rects1:
-    ax.text(rect.get_x() + rect.get_width()/2.0, rect.get_height() + 1.5, f"{rect.get_height():.1f}%", ha='center', fontsize=10, fontweight='bold')
-for rect in rects2:
-    ax.text(rect.get_x() + rect.get_width()/2.0, rect.get_height() + 1.5, f"{rect.get_height():.1f}%", ha='center', fontsize=10, fontweight='bold', color='#c0392b')
-for rect in rects3:
-    ax.text(rect.get_x() + rect.get_width()/2.0, rect.get_height() + 1.5, f"{rect.get_height():.1f}%", ha='center', fontsize=10, fontweight='bold', color='#d35400')
-
-ax.set_title('Đo Lường Domain Shift: Hiệu Năng Phòng Thí Nghiệm vs Ngoài Thực Tế', fontsize=14, fontweight='bold', pad=15)
-ax.set_ylabel('Điểm số (%)', fontsize=12)
-ax.set_xticks(x)
-ax.set_xticklabels(models_list, fontsize=11, fontweight='bold')
-ax.set_ylim(0, 115)
-ax.legend(frameon=True, facecolor='white', loc='upper right')
-
-plt.tight_layout()
-plt.show()""")
-
-# Cell 9: Markdown Section 4
-c9 = nbf.v4.new_markdown_cell("""## 4. Ma Trận Đánh Đổi MLOps (Latency vs Model Size vs Accuracy)
-Đánh giá mô hình theo tiêu chuẩn triển khai thực tế (Production Readiness):
-* Mô hình nào vừa nhẹ, vừa có độ trễ suy luận thấp nhất để nhúng vào chip nhúng/điện thoại di động?""")
-
-# Cell 10: Code Plot 4
-c10 = nbf.v4.new_code_cell("""fig, ax = plt.subplots(figsize=(10, 6), dpi=120)
-
-deploy_data = [
-    {'name': 'ConvNeXt-Tiny (Khôi)', 'latency': 27.89, 'f1': 99.95, 'size_mb': 32.3, 'color': '#9b59b6'},
-    {'name': 'ResNet-18 v2 (Long)', 'latency': 8.02, 'f1': 98.95, 'size_mb': 11.5, 'color': '#2980b9'},
-    {'name': 'ResNet-18 v3 (Long)', 'latency': 8.06, 'f1': 99.80, 'size_mb': 11.5, 'color': '#27ae60'}
+c4 = nbf.v4.new_code_cell("""leaderboard_data = [
+    {
+        "Model": "ConvNeXt-Tiny",
+        "Author": "Khoi",
+        "Train Dataset": "data_v1 (Random 80/20)",
+        "Split Integrity": "65.26% Leakage",
+        "Params (M)": 28.59,
+        "INT8 Size (MB)": 32.3,
+        "Lab Macro-F1 (%)": 99.95,
+        "PlantDoc Top-1 (%)": 31.36,
+        "PlantDoc Top-3 (%)": 54.66,
+        "OOD Drop (pp)": -68.59,
+        "CPU Latency (ms)": 27.89
+    },
+    {
+        "Model": "ResNet-18 (v1)",
+        "Author": "Long",
+        "Train Dataset": "data_v1 (Random 80/20)",
+        "Split Integrity": "65.26% Leakage",
+        "Params (M)": 11.20,
+        "INT8 Size (MB)": 11.5,
+        "Lab Macro-F1 (%)": 99.66,
+        "PlantDoc Top-1 (%)": np.nan,
+        "PlantDoc Top-3 (%)": np.nan,
+        "OOD Drop (pp)": np.nan,
+        "CPU Latency (ms)": 8.02
+    },
+    {
+        "Model": "ResNet-18 (v2)",
+        "Author": "Long",
+        "Train Dataset": "data_v2 (Leaf-Grouped)",
+        "Split Integrity": "0% Leakage (Grouped)",
+        "Params (M)": 11.20,
+        "INT8 Size (MB)": 11.5,
+        "Lab Macro-F1 (%)": 98.95,
+        "PlantDoc Top-1 (%)": 28.81,
+        "PlantDoc Top-3 (%)": 47.88,
+        "OOD Drop (pp)": -70.14,
+        "CPU Latency (ms)": 8.02
+    },
+    {
+        "Model": "ResNet-18 (v3)",
+        "Author": "Long",
+        "Train Dataset": "data_v3 (UUID Clean)",
+        "Split Integrity": "0% Leakage (Clean Split)",
+        "Params (M)": 11.20,
+        "INT8 Size (MB)": 11.5,
+        "Lab Macro-F1 (%)": 99.80,
+        "PlantDoc Top-1 (%)": 27.97,
+        "PlantDoc Top-3 (%)": 50.00,
+        "OOD Drop (pp)": -71.83,
+        "CPU Latency (ms)": 8.06
+    }
 ]
 
-for d in deploy_data:
-    scatter = ax.scatter(d['latency'], d['f1'], s=d['size_mb'] * 35, color=d['color'], alpha=0.7, edgecolors='black', linewidth=1.5)
-    ax.annotate(f"{d['name']}\\n(Size: {d['size_mb']}MB, Latency: {d['latency']:.1f}ms)", 
-                (d['latency'], d['f1']),
-                textcoords='offset points', xytext=(15, -10), ha='left', fontsize=10, fontweight='bold',
-                bbox=dict(boxstyle='round,pad=0.4', fc='white', alpha=0.8, ec=d['color']))
+df_leaderboard = pd.DataFrame(leaderboard_data)
+df_leaderboard.set_index("Model")""")
 
-ax.set_title('Ma Trận Đánh Đổi MLOps: Độ Trễ Suy Luận (CPU) vs Độ Chính Xác Lab (F1)', fontsize=13, fontweight='bold', pad=15)
-ax.set_xlabel('Độ trễ suy luận CPU (Mili-giây/ảnh) - Càng thấp càng tốt', fontsize=11)
-ax.set_ylabel('Lab Macro F1-Score (%)', fontsize=11)
-ax.set_xlim(5, 35)
-ax.set_ylim(98.5, 100.2)
+# -------------------------------------------------------------
+# Cell 5: Training Dynamics (Convergence curves)
+# -------------------------------------------------------------
+c5 = nbf.v4.new_markdown_cell("""## 2. Training Convergence & Loss Dynamics
+Ablation analysis across the 6-epoch 2-phase transfer learning schedule:
+* **Phase 1 (Epochs 1-2):** Classifier Head Warmup ($lr = 10^{-3}$, frozen backbone).
+* **Phase 2 (Epochs 3-6):** Full network fine-tuning with cosine annealing scheduler.""")
+
+c6 = nbf.v4.new_code_cell("""palette = {
+    "resnet18_v1": "#dc2626",  # Red
+    "resnet18_v2": "#2563eb",  # Blue
+    "resnet18_v3": "#059669"   # Green
+}
+
+legend_map = {
+    "resnet18_v1": "ResNet-18 v1 (Random Split - 65% Leakage)",
+    "resnet18_v2": "ResNet-18 v2 (Leaf-Grouped Split)",
+    "resnet18_v3": "ResNet-18 v3 (UUID Clean Split)"
+}
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 4.5), dpi=120)
+
+# Subplot A: Validation Cross-Entropy Loss
+for m_key, grp in df_epochs.groupby("model"):
+    axes[0].plot(grp["epoch"], grp["val_loss"], marker="o", markersize=5,
+                 linewidth=2.0, color=palette[m_key], label=legend_map[m_key])
+
+axes[0].axvline(x=2.5, color="#94a3b8", linestyle=":", linewidth=1.5)
+axes[0].text(1.5, 1.18, "Phase 1: Warmup", ha="center", fontsize=9, color="#64748b", fontweight="bold")
+axes[0].text(4.5, 1.18, "Phase 2: Fine-Tuning", ha="center", fontsize=9, color="#64748b", fontweight="bold")
+axes[0].set_title("Validation Cross-Entropy Loss")
+axes[0].set_xlabel("Epoch")
+axes[0].set_ylabel("Loss")
+axes[0].set_xticks(range(1, 7))
+axes[0].legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.9)
+sns.despine(ax=axes[0])
+
+# Subplot B: Validation Macro F1-Score
+for m_key, grp in df_epochs.groupby("model"):
+    axes[1].plot(grp["epoch"], grp["val_macro_f1"] * 100, marker="s", markersize=5,
+                 linewidth=2.0, color=palette[m_key], label=legend_map[m_key])
+
+axes[1].axvline(x=2.5, color="#94a3b8", linestyle=":", linewidth=1.5)
+axes[1].set_title("Validation Macro F1-Score (%)")
+axes[1].set_xlabel("Epoch")
+axes[1].set_ylabel("Macro F1 (%)")
+axes[1].set_xticks(range(1, 7))
+axes[1].set_ylim(85, 101)
+axes[1].legend(loc="lower right", frameon=True, facecolor="white", framealpha=0.9)
+sns.despine(ax=axes[1])
 
 plt.tight_layout()
 plt.show()""")
 
-# Cell 11: Markdown Conclusion
-c11 = nbf.v4.new_markdown_cell("""## 💡 Kết Luận & Định Hướng Tiếp Theo (Next Steps):
-1. **Minh chứng rõ ràng về Data Leakage:** Mô hình v1 bị đội điểm ảo (99.66%), trong khi Mô hình v2 và v3 phản ánh đúng khả năng phân loại khi triệt tiêu 100% rò rỉ.
-2. **Khẳng định tính ưu việt của ResNet-18 cho Edge AI:** ResNet-18 đạt tốc độ suy luận nhanh gấp **3.5 lần** ConvNeXt-Tiny (8ms vs 28ms) và dung lượng chỉ **11.5 MB** (bằng 1/3 ConvNeXt), hoàn toàn vượt trội cho bài toán IoT nông nghiệp.
-3. **Giải pháp cho Domain Shift ngoài thực tế:**
-   * Cả hai kiến trúc đều bị sụt giảm khi gặp ảnh ngoài đồng ruộng PlantDoc.
-   * Để mô hình sẵn sàng cho nông dân, bước tiếp theo là **Fine-tuning bổ sung 2.342 ảnh PlantDoc Train** kết hợp các kỹ thuật Data Augmentation ngoài trời (Background Noise Injection, Weather Simulation).""")
+# -------------------------------------------------------------
+# Cell 7: Hardware & Compute Efficiency (Colab vs RTX 3050)
+# -------------------------------------------------------------
+c7 = nbf.v4.new_markdown_cell("""## 3. Hardware Compute & Throughput Benchmark
+Comparison of mean epoch duration between cloud virtual compute (Google Colab Free Tier) vs. local hardware.""")
 
-nb['cells'] = [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11]
+c8 = nbf.v4.new_code_cell("""fig, ax = plt.subplots(figsize=(8, 4), dpi=120)
 
-nb_out = Path('notebooks/07_model_evaluation_and_analysis.ipynb')
-with open(nb_out, 'w', encoding='utf-8') as f:
+hardware_eval = pd.DataFrame([
+    {"Configuration": "Model v1\\n(Colab T4, 2 vCPU)", "Minutes": 611.8 / 60.0, "FPS": 4198.8, "Color": "#94a3b8"},
+    {"Configuration": "Model v2\\n(Colab T4, 2 vCPU)", "Minutes": 442.2 / 60.0, "FPS": 6295.0, "Color": "#64748b"},
+    {"Configuration": "Model v3\\n(RTX 3050 Laptop, 12 CPU)", "Minutes": 145.5 / 60.0, "FPS": 27708.7, "Color": "#059669"}
+])
+
+bars = ax.bar(hardware_eval["Configuration"], hardware_eval["Minutes"], 
+              color=hardware_eval["Color"], width=0.45, edgecolor="#1e293b", linewidth=0.8)
+
+for bar in bars:
+    h = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2.0, h + 0.25, f"{h:.1f} min/ep",
+            ha="center", va="bottom", fontsize=9.5, fontweight="bold")
+
+ax.set_title("Mean Training Duration per Epoch (Minutes)")
+ax.set_ylabel("Minutes / Epoch")
+ax.set_ylim(0, 13)
+sns.despine(ax=ax)
+
+plt.tight_layout()
+plt.show()""")
+
+# -------------------------------------------------------------
+# Cell 9: Domain Shift & Out-of-Distribution Breakdown
+# -------------------------------------------------------------
+c9 = nbf.v4.new_markdown_cell("""## 4. In-Lab vs. In-The-Wild Performance Degradation (Domain Shift)
+Evaluation of models trained exclusively on clean laboratory leaves (`PlantVillage`) when tested on real-world natural field conditions (`PlantDoc` Test Set, $N=236$ images across 27 matching classes).""")
+
+c10 = nbf.v4.new_code_cell("""models = ["ConvNeXt-Tiny", "ResNet-18 (v2 Grouped)", "ResNet-18 (v3 UUID Clean)"]
+lab_metrics = [99.95, 98.95, 99.80]
+plantdoc_top1 = [31.36, 28.81, 27.97]
+plantdoc_top3 = [54.66, 47.88, 50.00]
+
+x = np.arange(len(models))
+w = 0.24
+
+fig, ax = plt.subplots(figsize=(10, 4.5), dpi=120)
+
+r1 = ax.bar(x - w, lab_metrics, w, label="In-Lab F1 (PlantVillage)", color="#0f766e", edgecolor="#042f2e", linewidth=0.8)
+r2 = ax.bar(x, plantdoc_top1, w, label="Field Top-1 Acc (PlantDoc)", color="#e11d48", edgecolor="#4c0519", linewidth=0.8)
+r3 = ax.bar(x + w, plantdoc_top3, w, label="Field Top-3 Acc (PlantDoc)", color="#f59e0b", edgecolor="#78350f", linewidth=0.8)
+
+for bar in r1:
+    ax.text(bar.get_x() + bar.get_width()/2.0, bar.get_height() + 1.8, f"{bar.get_height():.1f}%", ha="center", fontsize=8.5, fontweight="bold")
+for bar in r2:
+    ax.text(bar.get_x() + bar.get_width()/2.0, bar.get_height() + 1.8, f"{bar.get_height():.1f}%", ha="center", fontsize=8.5, fontweight="bold", color="#be123c")
+for bar in r3:
+    ax.text(bar.get_x() + bar.get_width()/2.0, bar.get_height() + 1.8, f"{bar.get_height():.1f}%", ha="center", fontsize=8.5, fontweight="bold", color="#b45309")
+
+ax.set_title("Domain Shift Generalization Gap (In-Lab vs. Natural Field)")
+ax.set_ylabel("Accuracy / F1 Metric (%)")
+ax.set_xticks(x)
+ax.set_xticklabels(models, fontweight="bold")
+ax.set_ylim(0, 118)
+ax.legend(loc="upper right", frameon=True, facecolor="white", framealpha=0.9)
+sns.despine(ax=ax)
+
+plt.tight_layout()
+plt.show()""")
+
+# -------------------------------------------------------------
+# Cell 11: Pareto Efficiency Frontier (Inference vs. Footprint)
+# -------------------------------------------------------------
+c11 = nbf.v4.new_markdown_cell("""## 5. MLOps Pareto Efficiency: Latency, Size & Accuracy Trade-off
+Production readiness assessment for edge deployment (microcontrollers, drones, mobile devices).""")
+
+c12 = nbf.v4.new_code_cell("""fig, ax = plt.subplots(figsize=(9, 4.5), dpi=120)
+
+models_pareto = [
+    {"name": "ConvNeXt-Tiny", "lat": 27.89, "f1": 99.95, "size": 32.3, "color": "#475569"},
+    {"name": "ResNet-18 (v2)", "lat": 8.02, "f1": 98.95, "size": 11.5, "color": "#2563eb"},
+    {"name": "ResNet-18 (v3)", "lat": 8.06, "f1": 99.80, "size": 11.5, "color": "#059669"}
+]
+
+# Vẽ các điểm phân tán đại diện cho các mô hình
+for m in models_pareto:
+    ax.scatter(m["lat"], m["f1"], s=m["size"] * 25, color=m["color"], alpha=0.8, edgecolors="#0f172a", linewidth=1.2)
+    ax.annotate(f"{m['name']}\\n({m['size']} MB, {m['lat']:.1f} ms)", 
+                (m["lat"], m["f1"]),
+                textcoords="offset points", xytext=(12, -8),
+                fontsize=9, fontweight="bold",
+                bbox=dict(boxstyle="square,pad=0.3", fc="#f8fafc", ec="#cbd5e1", lw=0.8))
+
+# Vẽ đường Pareto Frontier kết nối các điểm tối ưu
+pareto_lat = [8.02, 8.06, 27.89]
+pareto_f1 = [98.95, 99.80, 99.95]
+ax.plot(pareto_lat, pareto_f1, color="#94a3b8", linestyle="--", linewidth=1.2, label="Pareto Frontier")
+
+ax.set_title("MLOps Pareto Efficiency: CPU Inference Latency vs. Lab F1-Score")
+ax.set_xlabel("CPU Inference Latency (ms/image) — Lower is better")
+ax.set_ylabel("Macro F1-Score (%) — Higher is better")
+ax.set_xlim(5, 35)
+ax.set_ylim(98.2, 100.3)
+ax.legend(loc="lower right", frameon=True)
+sns.despine(ax=ax)
+
+plt.tight_layout()
+plt.show()""")
+
+# -------------------------------------------------------------
+# Cell 13: Technical Insights & Architectural Conclusions
+# -------------------------------------------------------------
+c13 = nbf.v4.new_markdown_cell("""## 6. Analytical Takeaways & Production Recommendations
+
+1. **Empirical Data Leakage Quantification:**
+   * Random 80/20 partitioning on raw leaf datasets introduces an artificial metric inflation of **+0.71 pp** ($99.66\%$ vs. $98.95\%$) due to near-duplicate frame contamination ($65.26\%$ leakage rate). Grouped and clean splits provide a strictly verifiable baseline.
+2. **Domain Shift & Degradation Magnitude:**
+   * Monolithic classifiers trained on lab leaves suffer a **~70 percentage point drop** in natural field conditions (collapsing from $\sim 99\%$ to $28\% - 31\%$).
+   * Background noise, variable solar irradiance, and multi-leaf occlusion are the primary degradation vectors.
+3. **Architectural Justification for Two-Stage Decoupling:**
+   * End-to-end retraining on field data induces severe spurious correlation (learning fruit, soil, or branch features instead of pathology).
+   * Decoupling the pipeline into **Stage 1 (YOLO Leaf Localization)** and **Stage 2 (ResNet-18 Disease Classification)** preserves localized lesion resolution and isolates leaf pathology from environmental context.
+4. **Edge Deployment Viability:**
+   * Quantized ResNet-18 INT8 demonstrates superior edge feasibility over ConvNeXt-Tiny: **3.5x lower CPU latency** ($8.06\\text{ ms}$ vs. $27.89\\text{ ms}$) and **64.4% smaller footprint** ($11.5\\text{ MB}$ vs. $32.3\\text{ MB}$).""")
+
+nb["cells"] = [c1, c2, c3, c4, c5, c6, c7, c8, c9, c10, c11, c12, c13]
+
+nb_out = Path("notebooks/07_model_evaluation_and_analysis.ipynb")
+with open(nb_out, "w", encoding="utf-8") as f:
     nbf.write(nb, f)
 
-print(f"✅ Đã tạo thành công notebook: {nb_out}")
+print(f"Generated publication-grade benchmark notebook: {nb_out}")
