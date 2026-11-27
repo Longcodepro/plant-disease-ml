@@ -5,6 +5,8 @@ data_v1/*
 data_v2/
 data_v3/
 data_plantdoc/
+data_plantdoc_leaves/
+models/yolo/
 archive.zip
 dataset.zip
 *.zip
