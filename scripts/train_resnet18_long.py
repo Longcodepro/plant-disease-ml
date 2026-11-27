@@ -79,11 +79,11 @@ def main():
     data_dir = args.data_dir
     if data_dir is None:
         if args.dataset == "v3":
-            data_dir = str(ROOT_DIR / "data" / "clean_split")
+            data_dir = str(ROOT_DIR / "data_v3") if (ROOT_DIR / "data_v3").exists() else str(ROOT_DIR / "data" / "clean_split")
         elif args.dataset == "v2":
             data_dir = str(ROOT_DIR / "data_v2")
         else:
-            data_dir = str(ROOT_DIR / "data")
+            data_dir = str(ROOT_DIR / "data_v1") if (ROOT_DIR / "data_v1").exists() else str(ROOT_DIR / "data")
 
     print(f"=======================================================")
     print(f"🌿 HUẤN LUYỆN RESNET-18 (TÁC GIẢ: LONG)")

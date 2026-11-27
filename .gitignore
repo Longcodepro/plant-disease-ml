@@ -2,7 +2,9 @@
 data/*
 !data/test/
 !data/test/*
+data_v1*
 data_v2/
+data_v3/
 archive.zip
 dataset.zip
 *.zip
