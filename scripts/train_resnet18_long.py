@@ -121,6 +121,7 @@ def main():
 
     best_macro_f1 = 0.0
     best_state = None
+    epoch_history = []
 
     # PHASE 1: Warmup Head
     print(f"\n=== PHASE 1: WARMUP HEAD ({args.epochs_p1} epochs) ===")
@@ -134,7 +135,14 @@ def main():
         t0 = time.time()
         tr_loss, tr_acc = train_one_epoch(model, train_loader, opt_p1, criterion, scaler, device, use_amp)
         val_m = evaluate_model(model, valid_loader, device=device, criterion=criterion)
-        print(f"[P1 {ep}/{args.epochs_p1}] ({time.time()-t0:.1f}s) | "
+        duration_s = round(time.time() - t0, 1)
+        epoch_history.append({
+            "epoch": ep, "phase": "warmup_head", "duration_s": duration_s,
+            "train_loss": round(tr_loss, 4), "train_acc": round(tr_acc, 4),
+            "val_loss": round(val_m["val_loss"], 4), "val_acc": round(val_m["accuracy"], 4),
+            "val_macro_f1": round(val_m["macro_f1"], 4)
+        })
+        print(f"[P1 {ep}/{args.epochs_p1}] ({duration_s}s) | "
               f"Train Loss {tr_loss:.4f} Acc {tr_acc*100:.2f}% | "
               f"Val Loss {val_m['val_loss']:.4f} Acc {val_m['accuracy']*100:.2f}% Macro-F1 {val_m['macro_f1']*100:.2f}%")
         if val_m["macro_f1"] > best_macro_f1:
@@ -159,7 +167,14 @@ def main():
         tr_loss, tr_acc = train_one_epoch(model, train_loader, opt_p2, criterion, scaler, device, use_amp)
         scheduler.step()
         val_m = evaluate_model(model, valid_loader, device=device, criterion=criterion)
-        print(f"[P2 {ep:02d}/{args.epochs_p2:02d}] ({time.time()-t0:.1f}s) | "
+        duration_s = round(time.time() - t0, 1)
+        epoch_history.append({
+            "epoch": args.epochs_p1 + ep, "phase": "fine_tune", "duration_s": duration_s,
+            "train_loss": round(tr_loss, 4), "train_acc": round(tr_acc, 4),
+            "val_loss": round(val_m["val_loss"], 4), "val_acc": round(val_m["accuracy"], 4),
+            "val_macro_f1": round(val_m["macro_f1"], 4)
+        })
+        print(f"[P2 {ep:02d}/{args.epochs_p2:02d}] ({duration_s}s) | "
               f"Train Loss {tr_loss:.4f} Acc {tr_acc*100:.2f}% | "
               f"Val Loss {val_m['val_loss']:.4f} Acc {val_m['accuracy']*100:.2f}% Macro-F1 {val_m['macro_f1']*100:.2f}%")
         if val_m["macro_f1"] > best_macro_f1:
@@ -180,6 +195,7 @@ def main():
         "val_accuracy": final_metrics["accuracy"],
         "val_f1_macro": final_metrics["macro_f1"],
         "metrics": final_metrics,
+        "epoch_history": epoch_history,
         "model_state_dict": model.state_dict(),
         "class_indices": idx_to_class
     }, str(save_pth))

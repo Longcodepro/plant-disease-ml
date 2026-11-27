@@ -1,0 +1,19 @@
+model,name,dataset,hardware,epoch,phase,duration_s,train_loss,train_acc,val_loss,val_acc,val_macro_f1
+resnet18_v1,ResNet-18 (Anti-Leakage / V1),data_v1,Google Colab (NVIDIA T4 GPU 16GB),1,warmup_head,594.8,1.5578,0.7571,1.2189,0.8668,0.8661
+resnet18_v1,ResNet-18 (Anti-Leakage / V1),data_v1,Google Colab (NVIDIA T4 GPU 16GB),2,warmup_head,589.3,1.246,0.8517,1.1461,0.8968,0.8971
+resnet18_v1,ResNet-18 (Anti-Leakage / V1),data_v1,Google Colab (NVIDIA T4 GPU 16GB),3,fine_tune,610.0,0.9067,0.9589,0.7944,0.9845,0.9843
+resnet18_v1,ResNet-18 (Anti-Leakage / V1),data_v1,Google Colab (NVIDIA T4 GPU 16GB),4,fine_tune,615.4,0.7829,0.9854,0.7543,0.9915,0.9912
+resnet18_v1,ResNet-18 (Anti-Leakage / V1),data_v1,Google Colab (NVIDIA T4 GPU 16GB),5,fine_tune,624.1,0.7458,0.9921,0.7249,0.9962,0.9961
+resnet18_v1,ResNet-18 (Anti-Leakage / V1),data_v1,Google Colab (NVIDIA T4 GPU 16GB),6,fine_tune,637.1,0.7271,0.9952,0.7144,0.9967,0.9966
+resnet18_v2,ResNet-18 (Leaf-Grouped / V2),data_v2,Google Colab (NVIDIA T4 GPU 16GB),1,warmup_head,436.3,1.3672,0.8249,1.0822,0.9146,0.8885
+resnet18_v2,ResNet-18 (Leaf-Grouped / V2),data_v2,Google Colab (NVIDIA T4 GPU 16GB),2,warmup_head,432.6,1.1222,0.8971,1.0562,0.9228,0.8966
+resnet18_v2,ResNet-18 (Leaf-Grouped / V2),data_v2,Google Colab (NVIDIA T4 GPU 16GB),3,fine_tune,443.0,0.8533,0.9709,0.7844,0.9847,0.9785
+resnet18_v2,ResNet-18 (Leaf-Grouped / V2),data_v2,Google Colab (NVIDIA T4 GPU 16GB),4,fine_tune,446.5,0.7499,0.9912,0.7382,0.9878,0.9802
+resnet18_v2,ResNet-18 (Leaf-Grouped / V2),data_v2,Google Colab (NVIDIA T4 GPU 16GB),5,fine_tune,444.1,0.7187,0.9963,0.7137,0.994,0.9888
+resnet18_v2,ResNet-18 (Leaf-Grouped / V2),data_v2,Google Colab (NVIDIA T4 GPU 16GB),6,fine_tune,451.5,0.7045,0.9981,0.706,0.9952,0.9916
+resnet18_v3,ResNet-18 (UUID Clean / V3),data_v3,Local Laptop (Intel i5-12450HX + RTX 3050 6GB),1,warmup_head,93.0,1.3267,0.8421,1.0639,0.921,0.9208
+resnet18_v3,ResNet-18 (UUID Clean / V3),data_v3,Local Laptop (Intel i5-12450HX + RTX 3050 6GB),2,warmup_head,92.5,1.0704,0.9156,1.0461,0.9262,0.9248
+resnet18_v3,ResNet-18 (UUID Clean / V3),data_v3,Local Laptop (Intel i5-12450HX + RTX 3050 6GB),3,fine_tune,155.3,0.8313,0.9786,0.7613,0.9894,0.9893
+resnet18_v3,ResNet-18 (UUID Clean / V3),data_v3,Local Laptop (Intel i5-12450HX + RTX 3050 6GB),4,fine_tune,157.4,0.7388,0.9946,0.727,0.9943,0.9942
+resnet18_v3,ResNet-18 (UUID Clean / V3),data_v3,Local Laptop (Intel i5-12450HX + RTX 3050 6GB),5,fine_tune,156.8,0.7128,0.9972,0.7086,0.9965,0.9964
+resnet18_v3,ResNet-18 (UUID Clean / V3),data_v3,Local Laptop (Intel i5-12450HX + RTX 3050 6GB),6,fine_tune,158.3,0.7002,0.9988,0.6991,0.998,0.998

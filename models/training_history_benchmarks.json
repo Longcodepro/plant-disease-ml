@@ -1,0 +1,279 @@
+{
+  "metadata": {
+    "project": "Plant Disease ML (Chẩn đoán bệnh trên lá cây nông nghiệp)",
+    "author": "Long",
+    "created_at": "2026-11-27",
+    "hardware_local": {
+      "cpu": "Intel Core i5-12450HX (8 cores / 12 threads)",
+      "ram": "24GB DDR5",
+      "gpu": "NVIDIA GeForce RTX 3050 6GB Laptop GPU (TGP 95W)"
+    }
+  },
+  "models": {
+    "resnet18_v1": {
+      "name": "ResNet-18 (Anti-Leakage / V1)",
+      "author": "Long",
+      "dataset_name": "data_v1",
+      "dataset_split": "Random Split 80/20 (Có rò rỉ 65.26%)",
+      "hardware_trained": "Google Colab (NVIDIA T4 GPU 16GB)",
+      "epochs": [
+        {
+          "epoch": 1,
+          "phase": "warmup_head",
+          "duration_s": 594.8,
+          "train_loss": 1.5578,
+          "train_acc": 0.7571,
+          "val_loss": 1.2189,
+          "val_acc": 0.8668,
+          "val_macro_f1": 0.8661
+        },
+        {
+          "epoch": 2,
+          "phase": "warmup_head",
+          "duration_s": 589.3,
+          "train_loss": 1.246,
+          "train_acc": 0.8517,
+          "val_loss": 1.1461,
+          "val_acc": 0.8968,
+          "val_macro_f1": 0.8971
+        },
+        {
+          "epoch": 3,
+          "phase": "fine_tune",
+          "duration_s": 610.0,
+          "train_loss": 0.9067,
+          "train_acc": 0.9589,
+          "val_loss": 0.7944,
+          "val_acc": 0.9845,
+          "val_macro_f1": 0.9843
+        },
+        {
+          "epoch": 4,
+          "phase": "fine_tune",
+          "duration_s": 615.4,
+          "train_loss": 0.7829,
+          "train_acc": 0.9854,
+          "val_loss": 0.7543,
+          "val_acc": 0.9915,
+          "val_macro_f1": 0.9912
+        },
+        {
+          "epoch": 5,
+          "phase": "fine_tune",
+          "duration_s": 624.1,
+          "train_loss": 0.7458,
+          "train_acc": 0.9921,
+          "val_loss": 0.7249,
+          "val_acc": 0.9962,
+          "val_macro_f1": 0.9961
+        },
+        {
+          "epoch": 6,
+          "phase": "fine_tune",
+          "duration_s": 637.1,
+          "train_loss": 0.7271,
+          "train_acc": 0.9952,
+          "val_loss": 0.7144,
+          "val_acc": 0.9967,
+          "val_macro_f1": 0.9966
+        }
+      ],
+      "lab_metrics": {
+        "val_accuracy": 0.9967,
+        "val_macro_f1": 0.9966,
+        "throughput_fps": 4198.8,
+        "latency_ms": 0.24,
+        "params_count": 11196006,
+        "model_size_mb": 42.71
+      }
+    },
+    "resnet18_v2": {
+      "name": "ResNet-18 (Leaf-Grouped / V2)",
+      "author": "Long",
+      "dataset_name": "data_v2",
+      "dataset_split": "Physical Leaf Grouped (0% Rò rỉ)",
+      "hardware_trained": "Google Colab (NVIDIA T4 GPU 16GB)",
+      "epochs": [
+        {
+          "epoch": 1,
+          "phase": "warmup_head",
+          "duration_s": 436.3,
+          "train_loss": 1.3672,
+          "train_acc": 0.8249,
+          "val_loss": 1.0822,
+          "val_acc": 0.9146,
+          "val_macro_f1": 0.8885
+        },
+        {
+          "epoch": 2,
+          "phase": "warmup_head",
+          "duration_s": 432.6,
+          "train_loss": 1.1222,
+          "train_acc": 0.8971,
+          "val_loss": 1.0562,
+          "val_acc": 0.9228,
+          "val_macro_f1": 0.8966
+        },
+        {
+          "epoch": 3,
+          "phase": "fine_tune",
+          "duration_s": 443.0,
+          "train_loss": 0.8533,
+          "train_acc": 0.9709,
+          "val_loss": 0.7844,
+          "val_acc": 0.9847,
+          "val_macro_f1": 0.9785
+        },
+        {
+          "epoch": 4,
+          "phase": "fine_tune",
+          "duration_s": 446.5,
+          "train_loss": 0.7499,
+          "train_acc": 0.9912,
+          "val_loss": 0.7382,
+          "val_acc": 0.9878,
+          "val_macro_f1": 0.9802
+        },
+        {
+          "epoch": 5,
+          "phase": "fine_tune",
+          "duration_s": 444.1,
+          "train_loss": 0.7187,
+          "train_acc": 0.9963,
+          "val_loss": 0.7137,
+          "val_acc": 0.994,
+          "val_macro_f1": 0.9888
+        },
+        {
+          "epoch": 6,
+          "phase": "fine_tune",
+          "duration_s": 451.5,
+          "train_loss": 0.7045,
+          "train_acc": 0.9981,
+          "val_loss": 0.706,
+          "val_acc": 0.9952,
+          "val_macro_f1": 0.9916
+        }
+      ],
+      "lab_metrics": {
+        "test_accuracy": 0.9935,
+        "test_macro_f1": 0.9895,
+        "val_accuracy": 0.9952,
+        "val_macro_f1": 0.9916,
+        "throughput_fps": 6295.0,
+        "latency_ms": 0.16,
+        "params_count": 11196006,
+        "model_size_mb": 42.71
+      },
+      "domain_shift_plantdoc": {
+        "top1_accuracy": 0.2881,
+        "top3_accuracy": 0.4788,
+        "macro_f1": 0.2781,
+        "cpu_latency_ms": 8.02
+      }
+    },
+    "resnet18_v3": {
+      "name": "ResNet-18 (UUID Clean / V3)",
+      "author": "Long",
+      "dataset_name": "data_v3",
+      "dataset_split": "UUID Deduplication Split (0% Rò rỉ)",
+      "hardware_trained": "Local Laptop (Intel i5-12450HX + RTX 3050 6GB)",
+      "epochs": [
+        {
+          "epoch": 1,
+          "phase": "warmup_head",
+          "duration_s": 93.0,
+          "train_loss": 1.3267,
+          "train_acc": 0.8421,
+          "val_loss": 1.0639,
+          "val_acc": 0.921,
+          "val_macro_f1": 0.9208
+        },
+        {
+          "epoch": 2,
+          "phase": "warmup_head",
+          "duration_s": 92.5,
+          "train_loss": 1.0704,
+          "train_acc": 0.9156,
+          "val_loss": 1.0461,
+          "val_acc": 0.9262,
+          "val_macro_f1": 0.9248
+        },
+        {
+          "epoch": 3,
+          "phase": "fine_tune",
+          "duration_s": 155.3,
+          "train_loss": 0.8313,
+          "train_acc": 0.9786,
+          "val_loss": 0.7613,
+          "val_acc": 0.9894,
+          "val_macro_f1": 0.9893
+        },
+        {
+          "epoch": 4,
+          "phase": "fine_tune",
+          "duration_s": 157.4,
+          "train_loss": 0.7388,
+          "train_acc": 0.9946,
+          "val_loss": 0.727,
+          "val_acc": 0.9943,
+          "val_macro_f1": 0.9942
+        },
+        {
+          "epoch": 5,
+          "phase": "fine_tune",
+          "duration_s": 156.8,
+          "train_loss": 0.7128,
+          "train_acc": 0.9972,
+          "val_loss": 0.7086,
+          "val_acc": 0.9965,
+          "val_macro_f1": 0.9964
+        },
+        {
+          "epoch": 6,
+          "phase": "fine_tune",
+          "duration_s": 158.3,
+          "train_loss": 0.7002,
+          "train_acc": 0.9988,
+          "val_loss": 0.6991,
+          "val_acc": 0.998,
+          "val_macro_f1": 0.998
+        }
+      ],
+      "lab_metrics": {
+        "val_accuracy": 0.998,
+        "val_macro_f1": 0.998,
+        "throughput_fps": 27708.7,
+        "latency_ms": 0.04,
+        "params_count": 11196006,
+        "model_size_mb": 42.71
+      },
+      "domain_shift_plantdoc": {
+        "top1_accuracy": 0.2797,
+        "top3_accuracy": 0.5,
+        "macro_f1": 0.2639,
+        "cpu_latency_ms": 8.06
+      }
+    },
+    "convnext_tiny_khoi": {
+      "name": "ConvNeXt-Tiny",
+      "author": "Khôi",
+      "dataset_name": "data_v1",
+      "dataset_split": "Random Split 80/20",
+      "lab_metrics": {
+        "val_accuracy": 0.9995,
+        "val_macro_f1": 0.9995,
+        "throughput_fps": 550.0,
+        "latency_ms": 1.82,
+        "params_count": 28589126,
+        "model_size_mb": 109.1
+      },
+      "domain_shift_plantdoc": {
+        "top1_accuracy": 0.3136,
+        "top3_accuracy": 0.5466,
+        "macro_f1": 0.2903,
+        "cpu_latency_ms": 27.89
+      }
+    }
+  }
+}
