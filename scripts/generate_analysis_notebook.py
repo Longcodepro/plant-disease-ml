@@ -61,9 +61,9 @@ c4 = nbf.v4.new_code_cell("""leaderboard_data = [
         "Params (M)": 11.20,
         "INT8 Size (MB)": 11.5,
         "Lab Macro-F1 (%)": 99.66,
-        "PlantDoc Top-1 (%)": np.nan,
-        "PlantDoc Top-3 (%)": np.nan,
-        "CPU Latency (ms)": 8.02,
+        "PlantDoc Top-1 (%)": 28.81,
+        "PlantDoc Top-3 (%)": 50.00,
+        "CPU Latency (ms)": 8.77,
         "Throughput (FPS)": 4198.8
     },
     {
@@ -174,10 +174,10 @@ plt.show()""")
 # 6. Domain Shift ResNet-18 v2 vs v3
 c9 = nbf.v4.new_markdown_cell("""## 4. In-Lab vs. Natural Field Conditions (PlantDoc Benchmark)""")
 
-c10 = nbf.v4.new_code_cell("""models = ["ResNet-18 (v2 Grouped)", "ResNet-18 (v3 UUID Clean)"]
-lab_metrics = [98.95, 99.80]
-plantdoc_top1 = [28.81, 27.97]
-plantdoc_top3 = [47.88, 50.00]
+c10 = nbf.v4.new_code_cell("""models = ["ResNet-18 (v1 Random)", "ResNet-18 (v2 Grouped)", "ResNet-18 (v3 UUID Clean)"]
+lab_metrics = [99.66, 98.95, 99.80]
+plantdoc_top1 = [28.81, 28.81, 27.97]
+plantdoc_top3 = [50.00, 47.88, 50.00]
 
 x = np.arange(len(models))
 w = 0.22
