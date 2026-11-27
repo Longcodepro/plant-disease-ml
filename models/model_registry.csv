@@ -1,2 +1,4 @@
 timestamp,model_name,author,dataset,version,val_acc,val_macro_f1,model_file,int8_file
 2026-11-26 12:58:49,resnet18,long,v2,run_01,99.52%,99.16%,resnet18_long_v2_run_01.pth,resnet18_long_v2_run_01_int8.onnx
+2026-11-27 09:30:00,resnet18,long,v1,run_01,99.67%,99.66%,resnet18_long_v1_run_01.pth,resnet18_long_v1_run_01_int8.onnx
+2026-11-27 11:46:00,resnet18,long,v3,run_01,99.80%,99.80%,resnet18_long_v3_run_01.pth,resnet18_long_v3_run_01_int8.onnx

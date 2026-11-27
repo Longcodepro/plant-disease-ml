@@ -31,10 +31,10 @@ from notebooks.eval_engine import evaluate_model, print_evaluation_summary
 def parse_args():
     parser = argparse.ArgumentParser(description="Huấn luyện ResNet-18 theo chuẩn nhóm")
     parser.add_argument("--version", type=str, default="run_01", help="Phiên bản thử nghiệm (vd: run_01, run_02)")
-    parser.add_argument("--dataset", choices=["v1", "v2"], default="v2",
-                        help="v1: bộ cũ (data/), v2: bộ mới (data_v2/)")
+    parser.add_argument("--dataset", choices=["v1", "v2", "v3"], default="v2",
+                        help="v1: bộ cũ (data/), v2: bộ mới (data_v2/), v3: bộ sạch UUID (data/clean_split)")
     parser.add_argument("--data-dir", type=str, default=None,
-                        help="Đường dẫn dữ liệu (tự chọn data hoặc data_v2 nếu không truyền)")
+                        help="Đường dẫn dữ liệu (tự chọn data, data_v2 hoặc data/clean_split nếu không truyền)")
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--epochs-p1", type=int, default=2, help="Warmup epochs cho Head")
     parser.add_argument("--epochs-p2", type=int, default=4, help="Fine-tuning epochs toàn mạng")
@@ -78,7 +78,12 @@ def main():
 
     data_dir = args.data_dir
     if data_dir is None:
-        data_dir = str(ROOT_DIR / ("data_v2" if args.dataset == "v2" else "data"))
+        if args.dataset == "v3":
+            data_dir = str(ROOT_DIR / "data" / "clean_split")
+        elif args.dataset == "v2":
+            data_dir = str(ROOT_DIR / "data_v2")
+        else:
+            data_dir = str(ROOT_DIR / "data")
 
     print(f"=======================================================")
     print(f"🌿 HUẤN LUYỆN RESNET-18 (TÁC GIẢ: LONG)")

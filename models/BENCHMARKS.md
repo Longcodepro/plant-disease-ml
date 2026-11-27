@@ -13,6 +13,7 @@ Tiêu chuẩn đánh giá: **Designing Machine Learning Systems (Chip Huyen) & H
 | **ConvNeXt-Tiny** | Khôi | `data` (v1) | Random Split 80/20 | ~28.6M | 32.3 MB | 99.95%* | 99.95%* | ~550 FPS | 1.82 ms | (*) Bị ảnh hưởng bởi Data Leakage |
 | **ResNet-18 (Leaf-Grouped)** | **Long** | **`data_v2` (v2)** | **Grouped Split (Zero Leakage)** | **11.2M** | **11.5 MB** | **98.95% (Test)**<br>99.16% (Val) | **99.35% (Test)**<br>99.52% (Val) | **6,295 FPS** | **0.16 ms** | **⭐ Chuẩn khoa học nhất:** Kháng Leakage, nhanh x10, nhẹ x2.5 |
 | **ResNet-18 (Anti-Leakage)** | **Long** | **`data` (v1)** | **Random Split + Cutout** | **11.2M** | **11.5 MB** | **99.66% (Val)** | **99.67% (Val)** | **4,199 FPS** | **0.24 ms** | Minh chứng kinh điển: Bị đội điểm ảo do 65.26% rò rỉ dữ liệu |
+| **ResNet-18 (UUID Clean Split)** | **Long** | **`data/clean_split` (v3)** | **UUID Group Deduplication (0% Leakage)** | **11.2M** | **11.5 MB** | **99.80% (Val)** | **99.80% (Val)** | **27,708 FPS** | **0.04 ms** | **🚀 Sức mạnh Local RTX 3050:** Lọc sạch trùng lặp, tốc độ siêu tốc |
 
 ---
 
