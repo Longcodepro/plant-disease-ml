@@ -254,26 +254,6 @@
         "macro_f1": 0.2639,
         "cpu_latency_ms": 8.06
       }
-    },
-    "convnext_tiny_khoi": {
-      "name": "ConvNeXt-Tiny",
-      "author": "Khôi",
-      "dataset_name": "data_v1",
-      "dataset_split": "Random Split 80/20",
-      "lab_metrics": {
-        "val_accuracy": 0.9995,
-        "val_macro_f1": 0.9995,
-        "throughput_fps": 550.0,
-        "latency_ms": 1.82,
-        "params_count": 28589126,
-        "model_size_mb": 109.1
-      },
-      "domain_shift_plantdoc": {
-        "top1_accuracy": 0.3136,
-        "top3_accuracy": 0.5466,
-        "macro_f1": 0.2903,
-        "cpu_latency_ms": 27.89
-      }
     }
   }
 }
