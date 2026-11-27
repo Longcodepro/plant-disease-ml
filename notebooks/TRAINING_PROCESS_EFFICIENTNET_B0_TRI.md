@@ -152,9 +152,36 @@ model = build_efficientnet_b0(num_classes=ckpt["num_classes"], pretrained=False)
 model.load_state_dict(ckpt["model_state_dict"])
 model.eval()
 
-# Robust v2: use_preprocessor=True | v1 (models/efficientnet_b0_tri.pth): use_preprocessor=False
+# Robust v2: use_preprocessor=True | v1 (models/efficientnet_b0_tri.pth) & PlantDoc: use_preprocessor=False
 transform = get_mobile_eval_transforms(image_size=224, use_preprocessor=True)
 img_tensor = transform(Image.open("duong_dan_anh_la.jpg").convert("RGB")).unsqueeze(0).to(device)
 with torch.no_grad():
     probs = torch.softmax(model(img_tensor), dim=1)
 ```
+
+---
+
+## 7. Bước 5 — Fine-Tuning Gộp Chung `data_v2` + `data_plantdoc` 80/20
+
+* **Nguồn dữ liệu:** Bộ chia chuẩn `data_plantdoc_80_20` của nhóm (`train: 1.871` ảnh / 28 lớp, `valid: 468` ảnh / 28 lớp, `test: 236` ảnh / 27 lớp; `0` ảnh hỏng; **`0` rò rỉ SHA-256 `train ↔ valid`**). Gộp chung với `data_v2/train` (`38.039` ảnh) thành **`39.910` ảnh** và tự động tạo cache cạnh dài tối đa `384px` cho tập train (`data/plantdoc_train_cache_384/`, giữ nguyên ảnh gốc `valid`/`test`) để rút thời gian huấn luyện xuống **`31,4 phút`**.
+* **Lệnh fine-tune 2 giai đoạn từ `models/efficientnet_b0_tri.pth` (Stage 1: 55/45 + Stage 2: 75/25 + `min_pd_count=15` + CutMix/MixUp + Model EMA; chọn Best EMA thuần trên `PlantDoc Valid`, khóa kín `PlantDoc Test`):**
+
+```powershell
+.venv\Scripts\python.exe notebooks/efficientnet_b0_plantdoc_tri.py `
+  --pv_data_dir "data" `
+  --plantdoc_dir "data/plantdoc" `
+  --init_checkpoint "models/efficientnet_b0_tri.pth" `
+  --save_path "models/efficientnet_b0_plantdoc_tri.pth" `
+  --history_out "notebooks/efficientnet_b0_plantdoc_tri_results.json" `
+  --stage1_epochs 7 `
+  --stage2_epochs 7 `
+  --samples_per_epoch 10000 `
+  --min_pd_count 15 `
+  --train_cache_max_side 384
+```
+
+* **Kết quả chính thức (Best EMA Epoch 12/14 chọn trên Valid, Peak VRAM `1.499,4 MB`, `31,4 phút`, `23/23` unit tests PASSED):**
+  * **PlantDoc Valid (`468` ảnh, 28 lớp):** Zero-Shot `17,52%` Top-1 / `16,43%` Macro-F1 → **`70,94%` Top-1 (`332/468`)**, **`89,10%` Top-3**, **`70,68%` Macro-F1** (`0,45 ms/ảnh` / `2.202,3 FPS`).
+  * **PlantDoc Test (`236` ảnh, 27 lớp — khóa kín, chấm 1 lần duy nhất):** Zero-Shot `20,34%` Top-1 / `18,30%` Macro-F1 → **`66,10%` Top-1 (`156/236`)**, **`89,41%` Top-3 (`211/236`)**, **`65,36%` Macro-F1 (27 lớp)** *(Flip-TTA: `66,53%` Top-1 / `65,75%` Macro-F1; `eval_engine.py`: `63,02%` Macro-F1, `0,52 ms/ảnh` / `1.937,4 FPS`)*.
+  * **Giữ kiến thức Phòng Lab (`data_v2`, đủ 38 lớp):** Valid `98,63%` Macro-F1 (`98,93%` Acc, `0,21 ms/ảnh`) | Held-Out Test `98,94%` Macro-F1 (`99,10%` Acc).
+* **Xem đầy đủ các khung `📊 BẢNG ĐÁNH GIÁ CHUẨN` và bảng so sánh với Long & Khôi tại:** `notebooks/BENCHMARK_REPORT_EFFICIENTNET_B0_TRI.md`.
