@@ -1,4 +1,5 @@
 # Dữ liệu ảnh train/valid và file nén nặng (giữ lại data_v1/test ~548KB làm ảnh mẫu cho bản deploy)
+data
 data_v1/*
 !data_v1/test/
 !data_v1/test/*
