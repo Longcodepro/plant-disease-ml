@@ -1,0 +1,229 @@
+{
+  "metadata": {
+    "val_ratio": 0.2,
+    "seed": 42,
+    "total_classes": 28
+  },
+  "classes": {
+    "Apple___Apple_scab": {
+      "total_raw": 83,
+      "train_raw": 66,
+      "val_raw": 17,
+      "train_crops": 236,
+      "val_crops": 66
+    },
+    "Apple___Cedar_apple_rust": {
+      "total_raw": 79,
+      "train_raw": 63,
+      "val_raw": 16,
+      "train_crops": 226,
+      "val_crops": 65
+    },
+    "Apple___healthy": {
+      "total_raw": 82,
+      "train_raw": 66,
+      "val_raw": 16,
+      "train_crops": 268,
+      "val_crops": 52
+    },
+    "Blueberry___healthy": {
+      "total_raw": 106,
+      "train_raw": 85,
+      "val_raw": 21,
+      "train_crops": 1108,
+      "val_crops": 232
+    },
+    "Cherry_(including_sour)___healthy": {
+      "total_raw": 47,
+      "train_raw": 38,
+      "val_raw": 9,
+      "train_crops": 337,
+      "val_crops": 56
+    },
+    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot": {
+      "total_raw": 64,
+      "train_raw": 51,
+      "val_raw": 13,
+      "train_crops": 79,
+      "val_crops": 19
+    },
+    "Corn_(maize)___Common_rust_": {
+      "total_raw": 106,
+      "train_raw": 85,
+      "val_raw": 21,
+      "train_crops": 116,
+      "val_crops": 29
+    },
+    "Corn_(maize)___Northern_Leaf_Blight": {
+      "total_raw": 180,
+      "train_raw": 144,
+      "val_raw": 36,
+      "train_crops": 345,
+      "val_crops": 92
+    },
+    "Grape___Black_rot": {
+      "total_raw": 56,
+      "train_raw": 45,
+      "val_raw": 11,
+      "train_crops": 140,
+      "val_crops": 42
+    },
+    "Grape___healthy": {
+      "total_raw": 57,
+      "train_raw": 46,
+      "val_raw": 11,
+      "train_crops": 259,
+      "val_crops": 45
+    },
+    "Peach___healthy": {
+      "total_raw": 103,
+      "train_raw": 82,
+      "val_raw": 21,
+      "train_crops": 638,
+      "val_crops": 172
+    },
+    "Pepper,_bell___Bacterial_spot": {
+      "total_raw": 62,
+      "train_raw": 50,
+      "val_raw": 12,
+      "train_crops": 266,
+      "val_crops": 79
+    },
+    "Pepper,_bell___healthy": {
+      "total_raw": 53,
+      "train_raw": 42,
+      "val_raw": 11,
+      "train_crops": 393,
+      "val_crops": 68
+    },
+    "Potato___Early_blight": {
+      "total_raw": 109,
+      "train_raw": 87,
+      "val_raw": 22,
+      "train_crops": 372,
+      "val_crops": 64
+    },
+    "Potato___Late_blight": {
+      "total_raw": 97,
+      "train_raw": 78,
+      "val_raw": 19,
+      "train_crops": 432,
+      "val_crops": 60
+    },
+    "Raspberry___healthy": {
+      "total_raw": 112,
+      "train_raw": 90,
+      "val_raw": 22,
+      "train_crops": 859,
+      "val_crops": 167
+    },
+    "Soybean___healthy": {
+      "total_raw": 57,
+      "train_raw": 46,
+      "val_raw": 11,
+      "train_crops": 413,
+      "val_crops": 88
+    },
+    "Squash___Powdery_mildew": {
+      "total_raw": 124,
+      "train_raw": 99,
+      "val_raw": 25,
+      "train_crops": 324,
+      "val_crops": 95
+    },
+    "Strawberry___healthy": {
+      "total_raw": 88,
+      "train_raw": 70,
+      "val_raw": 18,
+      "train_crops": 561,
+      "val_crops": 90
+    },
+    "Tomato___Bacterial_spot": {
+      "total_raw": 101,
+      "train_raw": 81,
+      "val_raw": 20,
+      "train_crops": 327,
+      "val_crops": 66
+    },
+    "Tomato___Early_blight": {
+      "total_raw": 79,
+      "train_raw": 63,
+      "val_raw": 16,
+      "train_crops": 281,
+      "val_crops": 32
+    },
+    "Tomato___Late_blight": {
+      "total_raw": 101,
+      "train_raw": 81,
+      "val_raw": 20,
+      "train_crops": 254,
+      "val_crops": 69
+    },
+    "Tomato___Leaf_Mold": {
+      "total_raw": 85,
+      "train_raw": 68,
+      "val_raw": 17,
+      "train_crops": 368,
+      "val_crops": 95
+    },
+    "Tomato___Septoria_leaf_spot": {
+      "total_raw": 140,
+      "train_raw": 112,
+      "val_raw": 28,
+      "train_crops": 479,
+      "val_crops": 115
+    },
+    "Tomato___Spider_mites Two-spotted_spider_mite": {
+      "total_raw": 2,
+      "train_raw": 1,
+      "val_raw": 1,
+      "train_crops": 13,
+      "val_crops": 13
+    },
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus": {
+      "total_raw": 70,
+      "train_raw": 56,
+      "val_raw": 14,
+      "train_crops": 1076,
+      "val_crops": 189
+    },
+    "Tomato___Tomato_mosaic_virus": {
+      "total_raw": 44,
+      "train_raw": 35,
+      "val_raw": 9,
+      "train_crops": 220,
+      "val_crops": 59
+    },
+    "Tomato___healthy": {
+      "total_raw": 55,
+      "train_raw": 44,
+      "val_raw": 11,
+      "train_crops": 569,
+      "val_crops": 91
+    }
+  },
+  "summary": {
+    "raw_images": {
+      "total": 2342,
+      "train": 1874,
+      "val": 468,
+      "train_pct": 80.02,
+      "val_pct": 19.98,
+      "leakage_count": 0
+    },
+    "cropped_leaves": {
+      "total": 13269,
+      "train": 10959,
+      "val": 2310,
+      "train_pct": 82.59,
+      "val_pct": 17.41,
+      "leakage_count": 0
+    },
+    "directories": {
+      "raw_train": "data_plantdoc/train_split",
+      "raw_val": "data_plantdoc/val_split",
+      "leaves_train": "data_plantdoc_leaves/train_split",
+      "leaves_val": "data_plantdoc_leaves/val_split"
+    }
+  }
+}

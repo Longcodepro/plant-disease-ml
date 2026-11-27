@@ -266,7 +266,8 @@ def train_domain_adaptation(
         model, dummy_input, str(save_onnx),
         input_names=["input"], output_names=["logits"],
         dynamic_axes={"input": {0: "batch_size"}, "logits": {0: "batch_size"}},
-        opset_version=17
+        opset_version=17,
+        dynamo=False
     )
 
     # Quantize to INT8
