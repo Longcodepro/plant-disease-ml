@@ -22,7 +22,17 @@ DATA_DIR = ROOT_DIR / "data"
 
 
 def extract_archive(archive_path: Path, extract_to: Path):
-    """Giải nén đa định dạng (.zip, .tar.gz, .tgz, .tar)."""
+    """Giải nén đa định dạng (.zip, .tar.gz, .tgz, .tar) tự động nhận diện kể cả khi file thiếu đuôi mở rộng."""
+    if tarfile.is_tarfile(archive_path):
+        print(f"📦 Đang giải nén file tar/tar.gz: {archive_path.name}...")
+        with tarfile.open(archive_path) as tar:
+            tar.extractall(extract_to)
+        return
+    if zipfile.is_zipfile(archive_path):
+        print(f"📦 Đang giải nén file zip: {archive_path.name}...")
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
+            zip_ref.extractall(extract_to)
+        return
     name = archive_path.name.lower()
     if name.endswith((".tar.gz", ".tgz")):
         print(f"📦 Đang giải nén file tar.gz: {archive_path.name}...")
@@ -190,11 +200,10 @@ def main():
         sys.exit(1)
 
     dest_archive = ROOT_DIR / "dataset_downloaded"
-    download_from_gdrive(source_url, dest_archive)
-
     if not dest_archive.exists() or dest_archive.stat().st_size == 0:
-        print("❌ Lỗi: Quá trình tải file từ Google Drive thất bại.")
-        sys.exit(1)
+        download_from_gdrive(source_url, dest_archive)
+    else:
+        print(f"📦 Đã có sẵn file tải về: {dest_archive.name} ({dest_archive.stat().st_size / 1024**2:.1f} MB), tiến hành giải nén luôn...")
 
     extract_and_organize(dest_archive, target_data_dir)
 
