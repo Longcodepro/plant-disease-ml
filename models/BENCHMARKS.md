@@ -12,7 +12,7 @@ Tiêu chuẩn đánh giá: **Designing Machine Learning Systems (Chip Huyen) & H
 | **Simple CNN (Baseline 1)** | Nhóm | `data` (v1) | Random Split 80/20 | **~0.43M** | **~1.7 MB** (.pth) | ~92.40% | ~92.50% | ~850 FPS | 1.18 ms | Khởi điểm kiểm chứng luồng pipeline |
 | **ConvNeXt-Tiny** | Khôi | `data` (v1) | Random Split 80/20 | ~28.6M | 32.3 MB | 99.95%* | 99.95%* | ~550 FPS | 1.82 ms | (*) Bị ảnh hưởng bởi Data Leakage |
 | **ResNet-18 (Leaf-Grouped)** | **Long** | **`data_v2` (v2)** | **Grouped Split (Zero Leakage)** | **11.2M** | **11.5 MB** | **98.95% (Test)**<br>99.16% (Val) | **99.35% (Test)**<br>99.52% (Val) | **6,295 FPS** | **0.16 ms** | **⭐ Chuẩn khoa học nhất:** Kháng Leakage, nhanh x10, nhẹ x2.5 |
-| **ResNet-18 (Anti-Leakage)** | Long | `data` (v1) | Random Split + Cutout | 11.2M | 11.5 MB | *(Đang train)* | *(Đang train)* | ~6,000 FPS | ~0.18 ms | Thử nghiệm đối chứng kỹ thuật Cutout |
+| **ResNet-18 (Anti-Leakage)** | **Long** | **`data` (v1)** | **Random Split + Cutout** | **11.2M** | **11.5 MB** | **99.66% (Val)** | **99.67% (Val)** | **4,199 FPS** | **0.24 ms** | Minh chứng kinh điển: Bị đội điểm ảo do 65.26% rò rỉ dữ liệu |
 
 ---
 
