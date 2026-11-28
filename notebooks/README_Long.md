@@ -41,6 +41,7 @@ Toàn bộ quá trình nghiên cứu và mã nguồn được tổ chức thành
 | **05** | [05_plantdoc_field_evaluation.ipynb](file:///home/long/Documents/University/HOCTAP/HK7/Machine%20Learning%20(ML)/plant-disease-ml/notebooks/05_plantdoc_field_evaluation.ipynb) | Kiểm thử thực địa Model 1: Đối chiếu giữa đưa ảnh thô (Monolithic) và Hệ thống 2 Tầng (Two-Stage YOLO). |
 | **06** | [06_model_evaluation_and_analysis.ipynb](file:///home/long/Documents/University/HOCTAP/HK7/Machine%20Learning%20(ML)/plant-disease-ml/notebooks/06_model_evaluation_and_analysis.ipynb) | Phân tích sâu Ma trận nhầm lẫn (Confusion Matrix), đo lường độ trễ suy luận (Latency) và các điểm yếu ngoài trời. |
 | **07** | [07_fine_tune_resnet18_early_stopping.ipynb](file:///home/long/Documents/University/HOCTAP/HK7/Machine%20Learning%20(ML)/plant-disease-ml/notebooks/07_fine_tune_resnet18_early_stopping.ipynb) | **Model 2:** Tinh chỉnh thích nghi thực địa với cơ chế 2:1 Domain Mix, Early Stopping, xuất bản ONNX & INT8. |
+| **08** | [08_master_benchmark_and_system_evaluation.ipynb](file:///home/long/Documents/University/HOCTAP/HK7/Machine%20Learning%20(ML)/plant-disease-ml/notebooks/08_master_benchmark_and_system_evaluation.ipynb) | **Master Dashboard:** Tổng hợp và gom toàn bộ đánh giá chi tiết: thời gian chạy từng epoch, tốc độ phản hồi (Latency/FPS), kích thước tham số, hiện tượng đa bệnh và bảng điểm Production Readiness. |
 
 ---
 
