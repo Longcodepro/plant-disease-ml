@@ -64,7 +64,7 @@ flowchart LR
 ```
 
 ### 1.2. Thất bại kinh điển: Vấn đề chuyển dịch miền (The Lab-to-Field Domain Shift)
-Bộ dữ liệu tiêu chuẩn **PlantVillage** (với hơn 87.000 ảnh) chụp từng chiếc lá đơn lẻ được ngắt ra, đặt trên nền giấy trắng hoặc xám đồng nhất dưới ánh sáng nhân tạo có kiểm soát. Khi một mô hình CNN sâu (như ResNet-18 hay ConvNeXt) được huấn luyện trên dữ liệu này, nó không chỉ học đặc trưng của vết bệnh mà còn phụ thuộc nặng nề vào:
+Bộ dữ liệu tiêu chuẩn **PlantVillage** (với hơn 87.000 ảnh) chụp từng chiếc lá đơn lẻ được ngắt ra, đặt trên nền giấy trắng hoặc xám đồng nhất dưới ánh sáng nhân tạo có kiểm soát. Khi một mô hình CNN sâu (như ResNet-18) được huấn luyện trên dữ liệu này, nó không chỉ học đặc trưng của vết bệnh mà còn phụ thuộc nặng nề vào:
 - Độ tương phản sắc nét giữa viền lá và nền đơn sắc.
 - Góc chụp vuông góc trực diện (Orthogonal angle).
 - Ánh sáng đồng nhất không có bóng râm, hiện tượng lóa nắng hoặc phơi sáng ngược.

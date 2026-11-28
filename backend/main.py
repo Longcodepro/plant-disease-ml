@@ -70,11 +70,16 @@ def _default_model_path() -> str:
     env_path = os.getenv("MODEL_PATH")
     if env_path:
         return env_path
-    resnet18_path = PROJECT_ROOT / "models" / "resnet18_long_v2_run_01.pth"
-    if resnet18_path.exists():
-        return str(resnet18_path)
-    int8_path = PROJECT_ROOT / "models" / "convnext_tiny_khoi_int8.onnx"
-    return str(int8_path) if int8_path.exists() else str(PROJECT_ROOT / "models" / "baseline1_simple_cnn.pth")
+    finetuned_int8 = PROJECT_ROOT / "models" / "resnet18_long_v2_finetuned_best_int8.onnx"
+    if finetuned_int8.exists():
+        return str(finetuned_int8)
+    resnet18_pth = PROJECT_ROOT / "models" / "resnet18_long_v2_finetuned_best.pth"
+    if resnet18_pth.exists():
+        return str(resnet18_pth)
+    resnet18_v2 = PROJECT_ROOT / "models" / "resnet18_long_v2_run_01.pth"
+    if resnet18_v2.exists():
+        return str(resnet18_v2)
+    return str(PROJECT_ROOT / "models" / "baseline1_simple_cnn.pth")
 
 
 service = ModelService(
