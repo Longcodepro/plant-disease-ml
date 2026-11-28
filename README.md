@@ -1,295 +1,403 @@
-# 🌿 Plant Disease Classification — Chẩn Đoán Bệnh Lá Cây Nông Nghiệp
+# BÁO CÁO KỸ THUẬT NGHIÊN CỨU & THỰC NGHIỆM HỆ THỐNG
+# HỌC SÂU CHẨN ĐOÁN BỆNH CÂY TRỒNG TRÊN ẢNH THỰC ĐỊA
 
-Hệ thống học sâu (Deep Learning) nhận diện **38 loại cây trồng & bệnh lý** từ ảnh chụp lá cây (bộ dữ liệu **PlantVillage**, 87.867 ảnh), được thiết kế chuẩn mực theo **Kiến trúc 3 tầng độc lập (3-Tier Decoupled Architecture)**, kết hợp **ConvNeXt-Tiny Fine-tuning (đạt 99.95% Val Macro-F1)**, **ONNX + INT8 Quantization (Dynamic & Static)** và **Rust (`axum` + `ort` + `rayon`)** để tối ưu toàn diện từ kiểm định dữ liệu đến phục vụ suy luận (Model Serving).
+**Đề tài:** Nghiên cứu và Triển khai Giải pháp Chẩn đoán Bệnh học Cây trồng Nông nghiệp Ngoại cảnh dựa trên Kiến trúc Thị giác Máy tính Hai Tầng (Two-Stage Decoupling) và Kỹ thuật Thích nghi Miền Dữ liệu (Domain Adaptation).  
+**Tác giả thực hiện:** Nguyễn Thành Long  
+**Nhánh nghiên cứu:** `feat/resnet18-long`  
+**Kiến trúc nòng cốt:** ResNet-18 v2 (Fine-grained Classifier) & YOLOv8n (Leaf Bounding Detector)  
+**Môi trường thực nghiệm:** NVIDIA GeForce RTX 3050 6GB Laptop GPU | 24GB DDR5 RAM | Linux Mint 22 | PyTorch 2.5 + CUDA 12.4 | ONNX Runtime 1.20  
 
 ---
 
-## 1. Giới thiệu bài toán
+## MỤC LỤC CHI TIẾT
 
-### 1.1. Bối cảnh & Mục tiêu
-- **Bài toán:** Phân loại đa lớp (*Multi-class Image Classification*) với **38 lớp** gồm nhiều loại cây trồng (Táo, Cà chua, Khoai tây, Ngô, Nho, Cam, Ớt chuông, Đậu tương, Đào, Dâu tây...) ở cả trạng thái khỏe mạnh (`healthy`) và nhiễm bệnh (đốm lá, phấn trắng, sương mai, gỉ sắt, virus xoăn lá...).
-- **Đầu vào:** Ảnh lá cây định dạng JPG/PNG (tự động đưa về kích thước chuẩn `224 × 224` RGB).
-- **Đầu ra:** Nhãn bệnh có xác suất cao nhất (`predicted_class`), độ tin cậy (`confidence`), **Top-3** chẩn đoán kèm xác suất và độ trễ suy luận thực tế (`inference_time_ms`).
-- **Tiêu chí đánh giá kép** (tham khảo *Designing Machine Learning Systems* — Chip Huyen, Chương 4 & 7):
-  - **Chất lượng mô hình (ML Metrics):** **Macro F1-Score** *(tiêu chí quyết định)*, Accuracy, Weighted F1, Macro Precision / Recall.
-  - **Hiệu năng hệ thống (System Metrics):** Inference Latency (`ms/ảnh`), Throughput (`FPS`), Dung lượng mô hình (`MB`).
+1. [TỔNG QUAN & ĐỘNG LỰC NGHIÊN CỨU](#1-tổng-quan--động-lực-nghiên-cứu)
+   - 1.1. Bối cảnh nông nghiệp thông minh và thách thức thị giác máy tính
+   - 1.2. Thất bại kinh điển: Vấn đề chuyển dịch miền (The Lab-to-Field Domain Shift)
+   - 1.3. Mục tiêu kỹ thuật của nghiên cứu
+2. [PHÂN TÍCH KHÁM PHÁ DỮ LIỆU (EDA) & KIỂM TOÁN CHỐNG RÒ RỈ](#2-phân-tích-khám-phá-dữ-liệu-eda--kiểm-toán-chống-rò-rỉ)
+   - 2.1. So sánh đặc trưng hai tập dữ liệu: PlantVillage vs PlantDoc
+   - 2.2. Phân bố 38 lớp bệnh học và mất cân bằng dữ liệu
+   - 2.3. Quy trình phân chia dữ liệu có cấu trúc & Kiểm toán MD5 Hash (0% Data Leakage)
+3. [KIẾN TRÚC THỊ GIÁC MÁY TÍNH HAI TẦNG (TWO-STAGE DECOUPLING ARCHITECTURE)](#3-kiến-trúc-thị-giác-máy-tính-hai-tầng-two-stage-decoupling-architecture)
+   - 3.1. Sự phá sản của mô hình nguyên khối một tầng (Monolithic Failure)
+   - 3.2. Tầng 1: Bộ định vị và bóc tách phiến lá YOLOv8n (Leaf Localization)
+   - 3.3. Tầng 2: Mạng phân loại chuyên sâu ResNet-18 v2
+   - 3.4. Sơ đồ chuỗi xử lý toàn trình (End-to-End Pipeline)
+4. [PHƯƠNG PHÁP THÍCH NGHI MIỀN & TRỘN DỮ LIỆU TỶ LỆ 2:1](#4-phương-pháp-thích-nghi-miền--trộn-dữ-liệu-tỷ-lệ-21)
+   - 4.1. Nguy cơ quên lãng thảm khốc (Catastrophic Forgetting)
+   - 4.2. Cơ chế mỏ neo phòng thí nghiệm (Laboratory Anchors)
+   - 4.3. Đường ống tăng cường dữ liệu ngoại cảnh (Data Augmentation Pipeline)
+5. [QUÁ TRÌNH HUẤN LUYỆN & ĐỘNG LỰC HỌC SÂU (DEEP LEARNING DYNAMICS)](#5-quá-trình-huấn-luyện--động-lực-học-sâu-deep-learning-dynamics)
+   - 5.1. Tốc độ học phân rã (Differential Learning Rates)
+   - 5.2. Hàm mất mát làm mượt nhãn (Label Smoothing Cross-Entropy)
+   - 5.3. Tăng tốc phần cứng với Automatic Mixed Precision (AMP)
+   - 5.4. Cơ chế dừng sớm (Early Stopping) và tiến trình hội tụ
+6. [ĐÁNH GIÁ THỰC NGHIỆM ĐA CHIỀU & BẢNG SO SÁNH HIỆU NĂNG](#6-đánh-giá-thực-nghiệm-đa-chiều--bảng-so-sánh-hiệu-năng)
+   - 6.1. Bảng so sánh tổng thể qua các thế hệ mô hình (Leaderboard)
+   - 6.2. Đối chiếu ba cơ chế suy luận trên tập thực địa 236 ảnh
+   - 6.3. Báo cáo chi tiết 27 lớp bệnh học thực địa (Per-Class Diagnostics)
+   - 6.4. Phân tích ma trận nhầm lẫn (Confusion Matrix) & Lý giải sinh học
+   - 6.5. Hiện tượng đa bệnh học trên cùng một cây (Plant Co-Infection)
+7. [HIỆU NĂNG SUY LUẬN, DUNG LƯỢNG MÔ HÌNH & TRIỂN KHAI THỰC TẾ](#7-hiệu-năng-suy-luận-dung-lượng-mô-hình--triển-khai-thực-tế)
+   - 7.1. Benchmark độ trễ chi tiết (P50, P95, P99) trên GPU và CPU
+   - 7.2. Lượng tử hóa INT8 và tối ưu hóa dung lượng cho thiết bị biên (Edge)
+   - 7.3. Thiết kế kiến trúc dịch vụ API và giao diện ứng dụng
+8. [HẠN CHẾ CỦA NGHIÊN CỨU & HƯỚNG PHÁT TRIỂN](#8-hạn-chế-của-nghiên-cứu--hướng-phát-triển)
+9. [DANH MỤC TÀI LIỆU & TỆP THỰC NGHIỆM (ARTIFACT DIRECTORY)](#9-danh-mục-tài-liệu--tệp-thực-nghiệm-artifact-directory)
 
-### 1.2. Kiến trúc hệ thống (3-Tier Decoupled Architecture + Rust Acceleration)
+---
+
+## 1. TỔNG QUAN & ĐỘNG LỰC NGHIÊN CỨU
+
+### 1.1. Bối cảnh nông nghiệp thông minh và thách thức thị giác máy tính
+Trong nông nghiệp hiện đại, việc phát hiện sớm và chẩn đoán chính xác mầm bệnh trên cây trồng đóng vai trò quyết định đến năng suất mùa màng và an ninh lương thực. Sự phát triển của các mạng nơ-ron tích chập (Convolutional Neural Networks - CNN) đã mở ra triển vọng tự động hóa quy trình chẩn đoán thông qua hình ảnh chụp từ điện thoại thông minh hoặc máy bay không người lái (UAV).
+
+Tuy nhiên, khoảng cách giữa nghiên cứu học thuật và ứng dụng thực địa vẫn còn rất lớn. Phần lớn các công bố khoa học sử dụng các bộ dữ liệu chụp trong điều kiện phòng thí nghiệm lý tưởng, dẫn đến việc mô hình hoạt động kém khi triển khai trong môi trường tự nhiên.
+
+```mermaid
+flowchart LR
+    A["Mô hình huấn luyện trên Lab Data<br/>(PlantVillage)"] -->|"Độ chính xác Lab"| B["99.52% F1<br/>(Rất cao trong phòng thí nghiệm)"]
+    A -->|"Đưa thẳng ra đồng ruộng<br/>(PlantDoc Test)"| C["28.81% - 38.98% Top-1<br/>(Sụp đổ hiệu năng nghiêm trọng)"]
+    style B fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    style C fill:#fee2e2,stroke:#dc2626,stroke-width:2px
+```
+
+### 1.2. Thất bại kinh điển: Vấn đề chuyển dịch miền (The Lab-to-Field Domain Shift)
+Bộ dữ liệu tiêu chuẩn **PlantVillage** (với hơn 87.000 ảnh) chụp từng chiếc lá đơn lẻ được ngắt ra, đặt trên nền giấy trắng hoặc xám đồng nhất dưới ánh sáng nhân tạo có kiểm soát. Khi một mô hình CNN sâu (như ResNet-18 hay ConvNeXt) được huấn luyện trên dữ liệu này, nó không chỉ học đặc trưng của vết bệnh mà còn phụ thuộc nặng nề vào:
+- Độ tương phản sắc nét giữa viền lá và nền đơn sắc.
+- Góc chụp vuông góc trực diện (Orthogonal angle).
+- Ánh sáng đồng nhất không có bóng râm, hiện tượng lóa nắng hoặc phơi sáng ngược.
+
+Khi triển khai trên bộ dữ liệu thực địa **PlantDoc** (ảnh chụp thực tế cây trồng ngoài ruộng), mô hình lập tức đối mặt với hiện tượng **Chuyển dịch phân phối dữ liệu (Covariate Shift / Domain Shift)**:
+1. **Nhiễu bối cảnh phức tạp (Complex Background):** Đất cát, cành cây khô, cỏ dại, tay người cầm lá, bầu trời chiếm hơn 60% diện tích điểm ảnh.
+2. **Góc chụp và quy mô không đồng nhất (Scale Variation):** Cây chụp từ xa, lá bị nghiêng, biến dạng quang học, rung mờ do gió.
+3. **Hiện tượng nhiều lá chồng lấn (Multi-instance clutter):** Một bức ảnh chứa đồng thời hàng chục chiếc lá ở các độ sâu trường ảnh (depth of field) khác nhau.
+
+Hậu quả thực nghiệm: Mô hình ResNet-18 v2 đạt **99.52% độ chính xác** trong phòng thí nghiệm nhưng khi đưa nguyên tấm ảnh thực địa vào suy luận chỉ đạt **28.81% (với bản nén) đến 38.98% (với bản gốc)**.
+
+### 1.3. Mục tiêu kỹ thuật của nghiên cứu
+Nghiên cứu này được thực hiện nhằm giải quyết dứt điểm hiện tượng chuyển dịch miền nêu trên thông qua hai trụ cột công nghệ:
+- **Tách rời không gian (Spatial Decoupling) bằng Kiến trúc 2 Tầng:** Sử dụng YOLOv8n làm màng lọc định vị lá, loại bỏ hoàn toàn nhiễu bối cảnh trước khi phân loại.
+- **Thích nghi miền dữ liệu (Domain Adaptation) với Cơ chế Mỏ neo 2:1:** Tinh chỉnh ResNet-18 v2 trên dữ liệu lá cắt thực địa kết hợp dữ liệu mỏ neo phòng thí nghiệm để vừa học thích nghi ngoại cảnh, vừa chống hiện tượng quên lãng tri thức cũ (Catastrophic Forgetting).
+
+---
+
+## 2. PHÂN TÍCH KHÁM PHÁ DỮ LIỆU (EDA) & KIỂM TOÁN CHỐNG RÒ RỈ
+
+### 2.1. So sánh đặc trưng hai tập dữ liệu: PlantVillage vs PlantDoc
+
+| Đặc tính so sánh | Bộ dữ liệu phòng thí nghiệm (PlantVillage) | Bộ dữ liệu ngoại cảnh thực địa (PlantDoc) |
+| :--- | :--- | :--- |
+| **Môi trường chụp** | Phòng kín, ánh sáng đèn studio nhân tạo | Ngoài đồng ruộng tự nhiên, thời tiết tự do |
+| **Hậu cảnh (Background)** | Tấm phông đơn sắc xám/đen/trắng | Đất cát, lá khô, rác hữu cơ, cỏ dại, cây xung quanh |
+| **Thực thể trong ảnh** | Duy nhất 1 phiến lá nằm trọn vẹn ở tâm ảnh | Cả cây, cành cây, chùm lá (trung bình 5.4 lá/ảnh) |
+| **Hiện tượng quang học** | Không lóa, không bóng đổ, độ nét đồng đều | Phơi sáng mạnh, bóng râm cắt ngang, lóa phản xạ |
+| **Quy mô mẫu** | 87.867 ảnh (data_v2 sử dụng 68.173 ảnh train) | 2.578 ảnh gốc → Bóc tách thành 13.960 phiến lá |
+| **Số lượng lớp bao phủ** | Đầy đủ 38/38 lớp bệnh học | 28/38 lớp bệnh học |
+
+### 2.2. Phân bố 38 lớp bệnh học và mất cân bằng dữ liệu
+Dữ liệu phân loại bao gồm 14 loài cây trồng kinh tế (Táo, Việt quất, Anh đào, Ngô, Nho, Cam, Đào, Ớt chuông, Khoai tây, Mâm xôi, Đậu tương, Bí ngô, Dâu tây, Cà chua) với 38 trạng thái bệnh lý và khỏe mạnh.
+
+Sự mất cân bằng số lượng mẫu giữa các lớp là thách thức lớn:
+- Lớp có số lượng mẫu lớn nhất: `Orange___Haunglongbing_(Citrus_greening)` (>5.500 ảnh trong PlantVillage).
+- Lớp có số lượng mẫu ít nhất ngoài thực địa: `Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot` (chỉ có 5 lá test trong PlantDoc).
+
+### 2.3. Quy trình phân chia dữ liệu có cấu trúc & Kiểm toán MD5 Hash (0% Data Leakage)
+Một sai lầm rất phổ biến trong các nghiên cứu thị giác máy tính nông nghiệp là **Rò rỉ dữ liệu ở cấp độ cây (Plant-level Data Leakage)**: Cắt nhiều lá từ cùng một bức ảnh gốc, sau đó chia ngẫu nhiên vào cả tập Train và tập Test. Khi đó mô hình đạt độ chính xác ảo vì đã "học thuộc" điều kiện ánh sáng và góc chụp của cây đó.
+
+Quy trình phân chia của nghiên cứu tuân thủ nghiêm ngặt chuẩn MLOps:
+1. **Phân chia ở cấp độ ảnh gốc trước:** Toàn bộ 2.342 ảnh PlantDoc tập huấn luyện được chia theo tỷ lệ 80% Train (1.874 ảnh) và 20% Validation (468 ảnh) bằng seed cố định (`seed=42`).
+2. **Cắt lá sau khi đã chia thư mục:** Các phiến lá cắt ra từ 1.874 ảnh train chỉ nằm trong `train_split` (10.959 lá). Các phiến lá từ 468 ảnh val chỉ nằm trong `val_split` (2.310 lá).
+3. **Tập Test độc lập tuyệt đối:** 236 ảnh test gốc của PlantDoc (tương ứng 691 phiến lá cắt độc lập) được giữ nguyên vẹn từ tệp gốc của tác giả PlantDoc Singh et al., hoàn toàn không tham gia vào quá trình huấn luyện hay tinh chỉnh siêu tham số.
+4. **Kiểm toán hàm băm MD5:** Viết script duyệt qua toàn bộ 13.960 tệp ảnh lá cắt và tính mã băm MD5.
+   - Kết quả kiểm toán: `leakage_count = 0` (0% rò rỉ dữ liệu). Minh chứng được ghi nhận tại [plantdoc_train_val_split_manifest.json](notebooks/eda_reports/plantdoc_train_val_split_manifest.json).
+
+```mermaid
+flowchart TD
+    Raw["2.342 Ảnh Gốc Thực Địa (PlantDoc Raw)"] --> Split{"Phân Chia Cấp Độ Ảnh Gốc<br/>(Grouped by Image UUID, Seed 42)"}
+    Split -->|"80% Ảnh"| TrainRaw["1.874 Ảnh Gốc Train"]
+    Split -->|"20% Ảnh"| ValRaw["468 Ảnh Gốc Val"]
+    TrainRaw --> YOLO_Train["Bóc tách bằng YOLOv8n"] --> TrainLeaves["10.959 Phiến Lá Train<br/>(data_plantdoc_leaves/train_split)"]
+    ValRaw --> YOLO_Val["Bóc tách bằng YOLOv8n"] --> ValLeaves["2.310 Phiến Lá Val<br/>(data_plantdoc_leaves/val_split)"]
+    
+    TestRaw["236 Ảnh Gốc Kiểm Thử Độc Lập"] --> YOLO_Test["Bóc tách bằng YOLOv8n"] --> TestLeaves["691 Phiến Lá Test Độc Lập<br/>(data_plantdoc_leaves/test)"]
+    
+    Audit["Kiểm Toán MD5 Hash Kháng Rò Rỉ"] -.->|"Xác thực 0 mẫu trùng lặp"| TrainLeaves
+    Audit -.->|"Xác thực 0 mẫu trùng lặp"| ValLeaves
+    Audit -.->|"Xác thực 0 mẫu trùng lặp"| TestLeaves
+    style Audit fill:#fef3c7,stroke:#d97706,stroke-width:2px
+```
+
+---
+
+## 3. KIẾN TRÚC THỊ GIÁC MÁY TÍNH HAI TẦNG (TWO-STAGE DECOUPLING ARCHITECTURE)
+
+### 3.1. Sự phá sản của mô hình nguyên khối một tầng (Monolithic Failure)
+Phương pháp tiếp cận truyền thống (Monolithic End-to-End Classification) đưa trực tiếp toàn bộ bức ảnh chụp ngoài ruộng vào mạng ResNet-18 để dự đoán 1 trong 38 nhãn. Cách làm này thất bại vì:
+- Phép biến đổi `Resize(224, 224)` trên một bức ảnh chụp toàn cảnh kích thước `4000x3000` làm suy giảm độ phân giải trầm trọng. Các vết bệnh nấm nhỏ kích thước $5\times 5$ pixel bị biến mất hoàn toàn sau các lớp pooling.
+- Mạng nơ-ron kích hoạt mạnh trên các đặc trưng giả (spurious correlations) ở hậu cảnh như rơm rạ, đường ống tưới, ánh sáng phản chiếu trên mặt đất thay vì tập trung vào mô lá.
+
+### 3.2. Tầng 1: Bộ định vị và bóc tách phiến lá YOLOv8n (Leaf Localization)
+Thay vì bắt mạng phân loại phải đồng thời vừa tìm vị trí vừa chẩn đoán bệnh, chúng ta chia tách bài toán thành hai giai đoạn độc lập:
+- **Mô hình:** `yolov8n_leaf.pt` (kích thước siêu nhẹ 6.0 MB, 3.01 triệu tham số).
+- **Nhiệm vụ:** Định vị chính xác tọa độ hộp bao (Bounding Box) của từng phiến lá trong ảnh tự nhiên.
+- **Hiệu năng định vị:** Đạt chỉ số $mAP_{50} = 85.3\%$, trung bình bóc tách được **5.4 lá/cây** (dao động từ 1 đến 18 lá/ảnh).
+- **Bộ lọc chất lượng:** Chỉ trích xuất các hộp bao có độ tin cậy $conf \ge 0.25$, diện tích bounding box tối thiểu đạt chuẩn để loại trừ các mẩu lá vụn ở xa tiêu cự.
+
+### 3.3. Tầng 2: Mạng phân loại chuyên sâu ResNet-18 v2
+Sau khi bóc tách, các phiến lá được chuẩn hóa về kích thước $224 \times 224$ pixel và đưa vào ResNet-18 v2. Ở tầng này, mạng chỉ nhận đầu vào là bề mặt mô lá sạch, loại bỏ 100% bối cảnh ngoại lai.
+
+### 3.4. Sơ đồ chuỗi xử lý toàn trình (End-to-End Pipeline)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Người dùng / Camera Nông trại
+    participant YOLO as Tầng 1: YOLOv8n (Leaf Detector)
+    participant Crop as Bộ chuẩn hóa & Cắt phiến lá
+    participant ResNet as Tầng 2: ResNet-18 v2 (Pathology Classifier)
+    participant Agg as Bộ tổng hợp chẩn đoán (Inference Aggregator)
+
+    User->>YOLO: Gửi ảnh ngoại cảnh nguyên tấm (Raw Photo 640x640)
+    Note over YOLO: Phát hiện vị trí từng phiến lá (mAP50: 85.3%)
+    YOLO->>Crop: Danh sách Bounding Boxes [x1, y1, x2, y2]
+    Note over Crop: Cắt K phiến lá & Resize về 224x224
+    Crop->>ResNet: Batch K phiến lá sạch (Tensor K x 3 x 224 x 224)
+    Note over ResNet: Trích xuất đặc trưng & Dự đoán Softmax 38 lớp
+    ResNet->>Agg: Ma trận xác suất K x 38
+    alt Cơ chế 1: Gom xác suất (Mean Softmax Pooling)
+        Agg->>User: 1 Nhãn duy nhất đại diện toàn cây (Độ chính xác: 66.10%)
+    else Cơ chế 2: Cảnh báo dịch hại (Disease Warning Policy)
+        Agg->>User: Cảnh báo mầm bệnh nếu có ít nhất 1 lá nhiễm bệnh (Độ chính xác: 75.00%)
+    end
+```
+
+---
+
+## 4. PHƯƠNG PHÁP THÍCH NGHI MIỀN & TRỘN DỮ LIỆU TỶ LỆ 2:1
+
+### 4.1. Nguy cơ quên lãng thảm khốc (Catastrophic Forgetting)
+Nếu chỉ lấy mô hình đã huấn luyện từ phòng lab và tiếp tục fine-tune 100% trên dữ liệu lá cắt thực địa của PlantDoc:
+- Do PlantDoc chỉ có 28 lớp, 10 lớp còn lại không có dữ liệu thực địa sẽ bị suy giảm trọng số nghiêm trọng.
+- Mạng nơ-ron bị hiện tượng "quên lãng thảm khốc", mất đi các bộ lọc đặc trưng chất lượng cao đã học được từ hơn 68.000 ảnh chuẩn phòng lab.
+
+### 4.2. Cơ chế mỏ neo phòng thí nghiệm (Laboratory Anchors)
+Để khắc phục, nghiên cứu thiết kế chiến lược phối trộn miền dữ liệu theo tỷ lệ thực nghiệm tối ưu **2:1 (Field-to-Lab Ratio)**:
+- **Thành phần thực địa (Field Component - 68.1%):** 10.959 phiến lá cắt từ tập train thực địa PlantDoc. Đóng vai trò cung cấp tri thức về ánh sáng tự nhiên, góc nghiêng, bụi bẩn, và triệu chứng bệnh ngoài ruộng.
+- **Thành phần mỏ neo (Lab Anchor Component - 31.9%):** Lấy mẫu ngẫu nhiên có kiểm soát đúng 135 ảnh/lớp cho toàn bộ 38 lớp từ tập PlantVillage ($38 \times 135 = 5.130$ ảnh). Đóng vai trò "mỏ neo toán học" giữ cho không gian phân tách giữa các lớp không bị sụp đổ.
+- **Tổng tập huấn luyện thích nghi:** $10.959 + 5.130 = 16.089$ ảnh (252 batches/epoch với batch size 64).
+
+```mermaid
+pie title Phân Bổ Dữ Liệu Huấn Luyện Thích Nghi Miền 2:1 (Tổng: 16.089 Mẫu)
+    "Phiến lá thực địa PlantDoc (10.959 ảnh)" : 68.1
+    "Mỏ neo phòng Lab PlantVillage (5.130 ảnh)" : 31.9
+```
+
+### 4.3. Đường ống tăng cường dữ liệu ngoại cảnh (Data Augmentation Pipeline)
+Nhằm tăng cường tính bất biến của mạng đối với điều kiện thời tiết thực địa, chuỗi tiền xử lý áp dụng các kỹ thuật biến đổi ngẫu nhiên có chủ đích:
+
+```mermaid
+flowchart LR
+    In["Phiến lá đầu vào"] --> Resize["Resize (256x256)"]
+    Resize --> Crop["RandomResizedCrop (224x224, scale 0.8 - 1.0)"]
+    Crop --> FlipH["RandomHorizontalFlip (p=0.5)"]
+    FlipH --> FlipV["RandomVerticalFlip (p=0.3)"]
+    FlipV --> Jitter["ColorJitter (Brightness, Contrast, Saturation: 0.25)"]
+    Jitter --> Rot["RandomRotation (15 độ)"]
+    Rot --> Norm["ImageNet Normalization"]
+    Norm --> Out["Tensor đưa vào ResNet-18"]
+    style In fill:#f1f5f9,stroke:#475569
+    style Out fill:#dbeafe,stroke:#1d4ed8,stroke-width:2px
+```
+
+---
+
+## 5. QUÁ TRÌNH HUẤN LUYỆN & ĐỘNG LỰC HỌC SÂU (DEEP LEARNING DYNAMICS)
+
+### 5.1. Tốc độ học phân rã (Differential Learning Rates)
+Thay vì sử dụng một tốc độ học (Learning Rate) duy nhất cho toàn bộ mạng, chúng ta phân chia mạng thành 2 nhóm tham số:
+- **Khối trích xuất đặc trưng (Backbone - Conv1 đến Layer4):** Sử dụng tốc độ học nhỏ $LR = 8 \times 10^{-5}$ cùng hệ số suy giảm trọng số (Weight Decay) $10^{-4}$ để bảo toàn các bộ trích xuất biên, vân bề mặt đã tối ưu từ ImageNet và PlantVillage.
+- **Khối phân loại (Classification Head - Fully Connected FC):** Sử dụng tốc độ học lớn hơn gấp gần 4 lần $LR = 3 \times 10^{-4}$ để nhanh chóng tái cấu trúc ma trận phân tách không gian 38 chiều phù hợp với phân phối dữ liệu mới.
+- **Bộ tối ưu hóa:** AdamW kết hợp bộ điều chỉnh suy giảm hàm cosin (CosineAnnealingLR) hạ dần về $10^{-6}$.
+
+### 5.2. Hàm mất mát làm mượt nhãn (Label Smoothing Cross-Entropy)
+Ảnh chụp ngoài đồng ruộng luôn tồn tại nhãn nhiễu (Label Noise) do triệu chứng bệnh trong tự nhiên không thuần nhất. Sử dụng hàm mất mát Cross-Entropy truyền thống sẽ ép mạng dự đoán xác suất cực đoan ($0.999$), dẫn đến việc mạng bị quá tự tin (Overconfidence) vào các mẫu nhãn sai.
+
+Nghiên cứu áp dụng kỹ thuật làm mượt nhãn với hệ số $\epsilon = 0.1$:
+$$y'_k = (1 - \epsilon) \cdot y_k + \frac{\epsilon}{K}$$
+Trong đó $K = 38$ lớp. Cơ chế này khuyến khích mạng duy trì phân phối xác suất mềm dẻo hơn, cải thiện đáng kể khả năng tổng quát hóa trên tập kiểm thử ngoại cảnh.
+
+### 5.3. Tăng tốc phần cứng với Automatic Mixed Precision (AMP)
+Tận dụng nhân Tensor Cores trên kiến trúc Ampere của GPU NVIDIA RTX 3050:
+- Toàn bộ các phép tính tích chập tuyến tính chuyển đổi tự động sang nửa độ chính xác số thực (FP16).
+- Các phép tính tích lũy gradient và cập nhật trọng số duy trì ở số thực đơn (FP32) thông qua `torch.amp.GradScaler`.
+- **Kết quả:** Giảm mức chiếm dụng bộ nhớ VRAM xuống dưới 3.2 GB, cho phép đẩy batch size lên 64 và rút ngắn thời gian huấn luyện 1 epoch xuống còn **~41.8 giây** (tốc độ nạp và xử lý đạt 384.9 mẫu/giây).
+
+### 5.4. Cơ chế dừng sớm (Early Stopping) và tiến trình hội tụ
+Để ngăn chặn hoàn toàn hiện tượng quá khớp (Overfitting), quá trình fine-tuning được giám sát thông qua thuật toán dừng sớm dựa trên chỉ số **Validation Macro F1-Score** (thay vì Validation Loss) với độ kiên nhẫn `patience = 4`:
 
 ```text
-┌───────────────────────────────────────────────────────────────────────────┐
-│ TẦNG 1: RESEARCH, DATA & TRAINING (notebooks/ + scripts/ + Rust Audit)    │
-│  • Data Audit đa luồng bằng Rust (rayon + SHA-256)                        │
-│  • Shared Data Pipeline (data_pipeline.py) & Eval Engine (eval_engine.py) │
-│  • 2-Phase Fine-tuning ConvNeXt-Tiny (Colab T4) → .pth → .onnx → INT8    │
-└───────────────────────────────────┬───────────────────────────────────────┘
-                                    │ Model Artifacts (models/*.pth, *.onnx)
-┌───────────────────────────────────▼───────────────────────────────────────┐
-│ TẦNG 2: SERVING API (Port 8000 — Cùng 1 hợp đồng REST JSON)               │
-│  • Phương án A (Python): backend/ — FastAPI Plug & Play (.pth & .onnx)    │
-│  • Phương án B (Rust)  : backend/rust/ — Axum + ONNX Runtime (không GIL)  │
-└───────────────────────────────────┬───────────────────────────────────────┘
-                                    │ HTTP Multipart (/health, /predict)
-┌───────────────────────────────────▼───────────────────────────────────────┐
-│ TẦNG 3: WEB UI (frontend/ — React + Vite + TypeScript + Tailwind, :5173)  │
-│  • Interactive XAI Inspector (Before/After + Opacity 60fps), Batch, Charts│
-└───────────────────────────────────────────────────────────────────────────┘
+Epoch  1: Train Loss: 1.6829 | Train Acc: 66.85% | Val Loss: 2.1977 | Val Acc: 48.74% | Val Macro F1: 35.95% [Thời gian: 42.8s]
+Epoch  2: Train Loss: 1.4100 | Train Acc: 75.55% | Val Loss: 2.1357 | Val Acc: 51.73% | Val Macro F1: 41.78% [Thời gian: 41.9s]
+Epoch  3: Train Loss: 1.2959 | Train Acc: 79.27% | Val Loss: 2.1108 | Val Acc: 52.68% | Val Macro F1: 42.35% [Thời gian: 41.7s]
+Epoch  4: Train Loss: 1.2037 | Train Acc: 82.93% | Val Loss: 2.1365 | Val Acc: 55.41% | Val Macro F1: 47.35% [Thời gian: 40.7s]
+Epoch  5: Train Loss: 1.1436 | Train Acc: 85.27% | Val Loss: 2.1376 | Val Acc: 55.50% | Val Macro F1: 45.29% [Thời gian: 40.8s]
+Epoch  6: Train Loss: 1.0795 | Train Acc: 87.81% | Val Loss: 2.1390 | Val Acc: 55.84% | Val Macro F1: 44.83% [Thời gian: 43.2s]
+Epoch  7: Train Loss: 1.0297 | Train Acc: 89.71% | Val Loss: 2.1847 | Val Acc: 55.97% | Val Macro F1: 46.57% [Thời gian: 42.4s]
+Epoch  8: Train Loss: 0.9889 | Train Acc: 91.50% | Val Loss: 2.1806 | Val Acc: 56.02% | Val Macro F1: 48.56% -> LƯU CHECKPOINT TỐT NHẤT
+Epoch  9: Train Loss: 0.9547 | Train Acc: 92.70% | Val Loss: 2.1807 | Val Acc: 56.80% | Val Macro F1: 46.01% [Patience 1/4]
+Epoch 10: Train Loss: 0.9257 | Train Acc: 93.98% | Val Loss: 2.1564 | Val Acc: 57.27% | Val Macro F1: 47.96% [Patience 2/4]
+Epoch 11: Train Loss: 0.9047 | Train Acc: 94.86% | Val Loss: 2.1726 | Val Acc: 56.97% | Val Macro F1: 46.66% [Patience 3/4]
+Epoch 12: Train Loss: 0.8932 | Train Acc: 95.46% | Val Loss: 2.1606 | Val Acc: 57.66% | Val Macro F1: 46.92% [Patience 4/4] -> DỪNG SỚM
 ```
+
+Mô hình đạt đỉnh cao hội tụ tại **Epoch 8** với **Val Macro F1 đạt 48.56%** và Train Accuracy đạt 91.50%. Các epoch tiếp theo mặc dù Train Loss tiếp tục giảm nhưng Val Macro F1 có dấu hiệu bão hòa và dao động đi xuống, kích hoạt cơ chế Early Stopping kết thúc huấn luyện tại Epoch 12.
+
+Checkpoint tốt nhất tại Epoch 8 được tự động trích xuất và lưu trữ tại [models/resnet18_long_v2_finetuned_best.pth](models/resnet18_long_v2_finetuned_best.pth).
 
 ---
 
-## 2. Khám phá dữ liệu (EDA)
+## 6. ĐÁNH GIÁ THỰC NGHIỆM ĐA CHIỀU & BẢNG SO SÁNH HIỆU NĂNG
 
-Phân tích toàn bộ tập dữ liệu được thực hiện bởi [`notebooks/eda_and_inspection.py`](notebooks/eda_and_inspection.py) và lưu kết quả tại [`notebooks/eda_reports/class_distribution.csv`](notebooks/eda_reports/class_distribution.csv).
+### 6.1. Bảng so sánh tổng thể qua các thế hệ mô hình (Leaderboard)
 
-| Thuộc tính | Giá trị thực tế |
-|---|---|
-| **Nguồn dữ liệu** | PlantVillage Dataset (`ImageFolder` 38 lớp) |
-| **Tập Train (`data/train`)** | **70.295 ảnh** (80%) |
-| **Tập Validation (`data/valid`)** | **17.572 ảnh** (20%) |
-| **Tổng Train + Valid** | **87.867 ảnh** |
-| **Tập Test độc lập (`data/test`)** | **33 ảnh** |
-| **Tỷ lệ chia mỗi lớp (`valid_ratio`)** | Đồng đều **19.98% – 20.02%** trên toàn bộ 38 lớp |
-| **Lớp nhiều ảnh nhất** | `Soybean___healthy` — **2.527 ảnh** (2.022 train / 505 valid) |
-| **Lớp ít ảnh nhất** | `Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot` — **2.052 ảnh** (1.642 train / 410 valid) |
-| **Mức độ mất cân bằng (Imbalance Ratio)** | `2.022 / 1.642` = **1.23** (cân bằng tốt, không bị lệch cực đoan) |
+Toàn bộ dữ liệu trong bảng được trích xuất tự động từ sổ đăng ký [models/model_registry.csv](models/model_registry.csv) và báo cáo kiểm thử 236 ảnh thực địa [plantdoc_two_stage_detailed_results.csv](notebooks/eda_reports/plantdoc_two_stage_detailed_results.csv):
 
-![Phân phối 38 lớp PlantVillage](notebooks/eda_reports/class_distribution.png)
+| Tiêu chí Thực nghiệm | Baseline 1: Simple CNN | Model 1: ResNet-18 v2 (Lab Baseline) | Model 2: ResNet-18 v2 (Field Fine-Tuned) | Mức độ Cải thiện (Model 2 vs Model 1) |
+| :--- | :---: | :---: | :---: | :---: |
+| **Dữ liệu huấn luyện** | PlantVillage | PlantVillage | PlantDoc Mix 2:1 | Thích nghi miền thực địa |
+| **Lab Test Accuracy** | 72.10% | **99.52%** | 98.85% | -0.67% (Bảo toàn tri thức) |
+| **Lab Macro F1** | 64.08% | **99.16%** | 98.42% | -0.74% (Bảo toàn tri thức) |
+| **Lá cắt Test Top-1 (691 lá)** | 28.50% | 44.28% | **53.84%** | **+9.56%** |
+| **Lá cắt Test Macro F1** | 24.12% | 42.50% | **51.93%** | **+9.43%** |
+| **Ảnh thô Monolithic Top-1 (236 ảnh)** | 21.61% | 28.81% | **54.24%** | **+25.43%** |
+| **Chuỗi 2 Tầng (Softmax Pooling Top-1)** | 34.75% | 41.95% | **66.10%** | **+24.15%** |
+| **Chuỗi 2 Tầng (Disease Warning Top-1)** | 48.30% | 66.10% | **75.00%** | **+8.90%** |
+| **Chuỗi 2 Tầng (Disease Warning Top-3)** | 52.12% | 88.14% | **93.64%** | **+5.50%** |
 
-**Nhận xét chính từ EDA:**
-1. Danh sách 38 lớp giữa `train` và `valid` khớp nhau 100%, ánh xạ cố định vào [`models/class_indices.json`](models/class_indices.json) để tránh lệch nhãn giữa lúc train và lúc deploy API.
-2. Dù tỷ lệ mất cân bằng chỉ `1.23`, dự án vẫn dùng **Macro F1-Score** (trọng số ngang nhau cho mọi lớp bệnh) và **Class Weights** để đảm bảo không bỏ sót các bệnh ít mẫu hơn.
-3. Ảnh PlantVillage chủ yếu chụp trên nền xám đồng nhất trong điều kiện chuẩn — cần chú ý khả năng tổng quát hóa (*domain shift*) khi chụp lá thực tế ngoài đồng ruộng.
+### 6.2. Đối chiếu ba cơ chế suy luận trên tập thực địa 236 ảnh
+Để trả lời chính xác câu hỏi học thuật: *"Độ chính xác thực địa thực sự là bao nhiêu?"*, nghiên cứu làm rõ bản chất toán học của 3 cơ chế đánh giá trên cùng một tập 236 ảnh ngoại cảnh:
 
----
+1. **Cơ chế 1: Đánh giá ảnh thô nguyên bản (Monolithic Baseline) — 54.24% Top-1**
+   - Đưa nguyên bức ảnh kích thước lớn chụp ngoài vườn vào ResNet-18 v2.
+   - Kết quả: Đạt 128/236 ảnh đúng. Dù đã fine-tune, mô hình vẫn bị phân tán bởi bối cảnh đất đá và cỏ dại xung quanh.
+2. **Cơ chế 2: Chuỗi 2 tầng kết hợp Gom xác suất (Mean Softmax Pooling) — 66.10% Top-1**
+   - YOLO bóc tách $K$ phiến lá sạch, ResNet-18 tính vector xác suất Softmax $P_k$ cho từng lá, sau đó tính trung bình cộng xác suất:
+     $$\hat{y} = \arg\max_{c} \left( \frac{1}{K} \sum_{k=1}^K P_k(c) \right)$$
+   - Kết quả: Đạt 156/236 ảnh đúng (tăng vọt **+11.86%** so với ảnh thô). Đây là **chỉ số chuẩn mực khi hệ thống bắt buộc phải đưa ra một chẩn đoán duy nhất cho toàn bộ cây**.
+3. **Cơ chế 3: Chuỗi 2 tầng kết hợp Cảnh báo dịch tễ (Disease Warning / Any-Hit Policy) — 75.00% Top-1 & 93.64% Top-3**
+   - Dưới góc độ dịch tễ học và bảo vệ thực vật: Nếu một bụi cây có 5 lá, chỉ cần mô hình phát hiện chính xác ổ bệnh trên ít nhất 1 lá, hệ thống sẽ cảnh báo nông dân về loại bệnh đó để tiến hành khoanh vùng dập dịch.
+   - Kết quả: Tỷ lệ cảnh báo trúng đích đạt **75.00%** (177/236 ảnh) và tỷ lệ bao phủ Top-3 đạt **93.64%** (221/236 ảnh).
 
-## 3. Tiền xử lý dữ liệu & Điểm vượt trội
+### 6.3. Báo cáo chi tiết 27 lớp bệnh học thực địa (Per-Class Diagnostics)
+Báo cáo chi tiết trên 691 phiến lá cắt độc lập (lưu tại [plantdoc_per_class_classification_report.csv](notebooks/eda_reports/plantdoc_per_class_classification_report.csv)) cho thấy sự phân hóa rõ rệt:
 
-Toàn bộ logic tiền xử lý được gom về một nguồn duy nhất ([`notebooks/data_pipeline.py`](notebooks/data_pipeline.py)) và đồng bộ tuyệt đối với tầng Serving ([`backend/service.py`](backend/service.py), [`backend/rust/src/main.rs`](backend/rust/src/main.rs)).
+#### Nhóm các lớp có hiệu năng xuất sắc nhất (Top Performers):
+1. `Corn_(maize)___Common_rust_`: Precision 100.0%, Recall 80.0%, **F1-Score 88.89%** (Bệnh gỉ sắt ngô có các nốt mụn sần màu nâu đỏ đặc trưng, mạng nhận diện cực kỳ chuẩn xác).
+2. `Strawberry___healthy`: Precision 75.7%, Recall 87.5%, **F1-Score 81.16%** (Lá dâu tây có viền răng cưa sâu đặc trưng, ít bị nhầm lẫn loài).
+3. `Raspberry___healthy`: Precision 65.4%, Recall 100.0%, **F1-Score 79.07%**.
+4. `Peach___healthy`: Precision 81.8%, Recall 75.0%, **F1-Score 78.26%** (Tăng trưởng ấn tượng từ 0.0% ở Model 1 lên 78.26% ở Model 2).
+5. `Apple___Apple_scab`: Precision 92.9%, Recall 65.0%, **F1-Score 76.47%**.
 
-### 3.1. Chi tiết Pipeline tiền xử lý
-- **Luồng tập Train (`get_train_transforms` — chống Overfitting, mô phỏng điều kiện thực tế):**
-  1. `RandomResizedCrop(224, scale=(0.8, 1.0), ratio=(0.9, 1.1))`: Mô phỏng góc chụp xa/gần.
-  2. `RandomHorizontalFlip(p=0.5)` + `RandomVerticalFlip(p=0.2)` + `RandomRotation(15°)`: Bất biến theo hướng xoay của lá cây.
-  3. `ColorJitter(brightness=0.15, contrast=0.15, saturation=0.15)`: Mô phỏng thay đổi ánh sáng nắng/râm.
-  4. `ToTensor()` + `Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])`: Chuẩn hóa pixel theo phân phối ImageNet khớp hoàn toàn với backbone pretrained.
-- **Luồng tập Valid / Test / Production API (`get_eval_transforms` — Deterministic):**
-  - Chỉ `Resize((224, 224))` → `ToTensor()` → `Normalize` (tuyệt đối không có phép biến đổi ngẫu nhiên).
-- **Xử lý mất cân bằng (`compute_class_weights`):**
-  - Tính trọng số nghịch đảo tần suất $w_j = \frac{\text{Total}}{C \cdot \text{Count}_j}$ đưa trực tiếp vào hàm loss.
+#### Nhóm các lớp phục hồi mạnh mẽ nhất sau khi Thích nghi miền (Top Improved):
+- `Peach___healthy`: Tăng **+78.26% F1** (từ 0.0% lên 78.26%).
+- `Grape___Black_rot`: Tăng **+66.67% F1** (từ 0.0% lên 66.67%).
+- `Corn_(maize)___Common_rust_`: Tăng **+62.22% F1** (từ 26.67% lên 88.89%).
+- `Apple___Apple_scab`: Tăng **+49.80% F1** (từ 26.67% lên 76.47%).
+- `Tomato___healthy`: Tăng **+47.06% F1** (từ 0.0% lên 47.06%).
 
-### 3.2. Điểm vượt trội so với đa số đồ án PlantVillage thông thường
+### 6.4. Phân tích ma trận nhầm lẫn (Confusion Matrix) & Lý giải sinh học
+Ma trận nhầm lẫn kích thước $27 \times 27$ trên 691 mẫu kiểm thử (lưu tại [confusion_matrix_test_691_leaves.csv](notebooks/eda_reports/confusion_matrix_test_691_leaves.csv) và đồ thị [confusion_matrix_test_691_leaves.png](notebooks/eda_reports/confusion_matrix_test_691_leaves.png)) vạch rõ các trường hợp nhầm lẫn chính:
 
-| Tiêu chí | Đa số bài làm thông thường | Cách dự án này triển khai (Điểm cộng) |
-|---|---|---|
-| **Chống Data Leakage** | Áp chung 1 transform có augmentation cho cả valid hoặc không kiểm tra trùng ảnh | Tách biệt tuyệt đối `train_transforms` vs `eval_transforms`; bổ sung công cụ **Rust `data-audit`** tính **SHA-256** đa luồng để phát hiện ảnh hỏng & ảnh trùng lặp giữa `train ↔ valid` |
-| **Tính công bằng khi so sánh model** | Mỗi notebook tự viết lại `DataLoader` và hàm tính Accuracy riêng | Bắt buộc dùng chung `data_pipeline.py` + `eval_engine.py` và cùng file nhãn `class_indices.json` |
-| **Tối ưu I/O huấn luyện trên Colab** | Đọc trực tiếp 87.000 ảnh từ Google Drive (chậm gấp 10–20 lần) | Notebook tự động tải/giải nén `data.tar.gz` vào **SSD tạm `/content/data`** của Colab để tận dụng tối đa GPU T4, chỉ lưu checkpoint `.pth`/`.onnx` về Drive |
-| **Đồng bộ Train ↔ Serving** | Hardcode tên lớp hoặc tiền xử lý khác nhau giữa notebook và API | Dùng chung `class_indices.json` và chuẩn Bilinear `224×224` + ImageNet mean/std ở cả PyTorch, ONNX Python và Rust |
+| Bệnh Thực Tế (Ground Truth) | Bệnh Bị Đoán Nhầm (Predicted) | Số lượng nhầm | Tỷ lệ nhầm | Giải thích nguyên nhân Sinh học & Thị giác Máy tính |
+| :--- | :--- | :---: | :---: | :--- |
+| **Tomato Tomato mosaic virus** | **Tomato Tomato Yellow Leaf Curl Virus** | 22 | 41.5% | Cùng là bệnh virus trên cà chua gây triệu chứng xoăn ngọn, mất màu diệp lục (chlorosis) và biến dạng gân lá. Về mặt thị giác máy tính, hoa văn bề mặt lá của hai bệnh này gần như tương đồng hoàn toàn. |
+| **Potato Early blight** | **Potato Late blight** | 19 | 52.8% | Bệnh đốm vòng sớm (*Alternaria solani*) và bệnh mốc sương muộn (*Phytophthora infestans*) trên khoai tây đều tạo ra các đốm hoại tử màu nâu đen ở rìa lá. Khi vết bệnh mới chớm nở, diện tích đốm nhỏ khiến ResNet-18 khó phân biệt cấu trúc vòng đồng tâm. |
+| **Potato Late blight** | **Potato Early blight** | 11 | 45.8% | Nhầm lẫn hai chiều đối xứng giữa bệnh sớm và muộn trên cây khoai tây. |
+| **Grape healthy** | **Blueberry healthy** | 12 | 28.6% | Lá lành của nho và việt quất khi chụp cận cảnh mô lá xanh mướt có kết cấu vân lá tương tự nhau, gây nhầm lẫn loài cây. |
+| **Tomato Septoria leaf spot** | **Tomato Bacterial spot** | 8 | 20.5% | Cả đốm lá Septoria và đốm vi khuẩn đều biểu hiện bằng các chấm li ti đường kính 1-2mm rải rác trên bề mặt lá cà chua. |
 
----
-
-## 4. Kiến trúc Mô hình, Huấn luyện, Tối ưu & Danh sách Thí nghiệm
-
-### 4.1. Kiến trúc chủ lực: `ConvNeXt-Tiny` và 4 điểm ăn tiền
-
-Dự án chọn **`ConvNeXt-Tiny`** (Meta AI, *A ConvNet for the 2020s*, ~27.8M tham số) làm mô hình chủ lực thay vì các mạng CNN cổ điển (VGG, ResNet50):
-
-```text
-Ảnh lá cây (3 × 224 × 224)
-  ├─► Patchify Stem: Conv 4×4 (stride 4) + LayerNorm   ──► (96  × 56 × 56)
-  ├─► Stage 1 (3 ConvNeXt blocks)                      ──► (96  × 56 × 56)  # Gân lá, viền lá, đốm nhỏ
-  ├─► Stage 2 (3 ConvNeXt blocks)                      ──► (192 × 28 × 28)  # Họa tiết nấm, sắc tố bệnh
-  ├─► Stage 3 (9 ConvNeXt blocks)                      ──► (384 × 14 × 14)  # Cấu trúc vùng tổn thương
-  ├─► Stage 4 (3 ConvNeXt blocks)                      ──► (768 ×  7 ×  7)  # Đặc trưng phân biệt 38 lớp
-  └─► GlobalAvgPool(1×1) + LayerNorm + Linear(768 → 38) ─► 38 Logits ─► Softmax
-```
-
-**4 điểm ăn tiền của `ConvNeXt-Tiny` cho bài toán bệnh lá cây:**
-1. **Depthwise Convolution `7×7`** (thay cho `3×3` truyền thống): Mở rộng vùng nhìn (*receptive field*) tương đương cơ chế Window Attention của Swin Transformer → bắt tốt đồng thời **đốm bệnh siêu nhỏ** lẫn **bối cảnh cả chiếc lá** mà vẫn giữ chi phí tính toán thấp.
-2. **Patchify Stem (`Conv 4×4, stride 4`):** Nén không gian đầu vào thông minh như Vision Transformer, giảm nhiễu ở mức pixel thô.
-3. **Inverted Bottleneck (`1×1` mở rộng 4x → `1×1` nén lại) + Residual Skip Connection:** Tăng năng lực biểu diễn phi tuyến và dẫn truyền gradient mượt ở mạng sâu.
-4. **LayerNorm & GELU** (thay BatchNorm & ReLU): Giúp quá trình fine-tuning ổn định hơn, ít nhạy cảm với batch size và hội tụ sâu hơn.
-
-### 4.2. Quy trình Huấn luyện & Fine-tuning ([`notebooks/03_convnext_tiny_khoi.ipynb`](notebooks/03_convnext_tiny_khoi.ipynb))
-
-Thay vì train từ đầu hoặc mở khóa toàn bộ mạng ngay lập tức (dễ phá vỡ trọng số ImageNet), dự án áp dụng **2-Phase Transfer Learning** trên **Google Colab GPU T4**:
-
-- **Giai đoạn 1 — Warmup Head (2 epochs):**
-  - Đóng băng toàn bộ backbone pretrained, chỉ huấn luyện lớp phân loại cuối (`Linear 768 → 38`) với `AdamW (lr = 1e-3)`.
-  - *Tác dụng:* Ổn định trọng số lớp cuối trước khi truyền gradient ngược về backbone → đạt **98.30% Val Macro-F1** chỉ sau 2 epochs.
-- **Giai đoạn 2 — Full Fine-tuning với Differential Learning Rate:**
-  - Mở băng toàn bộ mạng với 2 mức learning rate riêng biệt: **Backbone `lr = 1e-4`** (tinh chỉnh nhẹ bộ lọc đặc trưng) và **Head `lr = 5e-4`** (hội tụ nhanh lớp quyết định).
-- **Các kỹ thuật tối ưu bổ sung:**
-  - **`Label Smoothing = 0.1` + `Class Weights`:** Chống mô hình tự tin cực đoan (overconfidence) và cân bằng cả 38 lớp.
-  - **`AdamW (weight_decay = 1e-2)` + `CosineAnnealingLR`:** Hạ learning rate mượt theo đường cong cos giúp tìm điểm cực tiểu phẳng hơn.
-  - **Mixed Precision (`torch.amp` FP16/FP32):** Tăng tốc độ huấn luyện ~2x và tiết kiệm VRAM trên GPU T4.
-  - **Model Checkpointing & Early Stopping theo `val_macro_f1`:** Tự động lưu checkpoint tốt nhất sau từng epoch trực tiếp lên Google Drive.
-
-### 4.3. Tối ưu Triển khai: ONNX, INT8 Quantization (Dynamic & Static), Plug & Play & Rust
-
-1. **Xuất ONNX FP32 (`opset 17`, `dynamic_axes`):**
-   - Tách đồ thị mô hình khỏi PyTorch, kiểm chứng độ khớp tuyệt đối (**Max abs diff = `1.07e-06`**).
-   - CPU latency trên Colab giảm từ **`173.0 ms` (PyTorch) → `118.9 ms` (ONNX Runtime)** (**nhanh hơn 1.46x** ngay trên CPU 2-core ảo).
-2. **Nén ONNX INT8 Quantization — Dynamic & Static ([`scripts/quantize_onnx.py`](scripts/quantize_onnx.py)):**
-   - **Dynamic Quantization (`--mode dynamic`, `QUInt8` trên `MatMul`/`Gemm`):** Giảm dung lượng thực tế từ **`106.3 MB → 32.3 MB` (nhẹ hơn 3.29x)**, giữ nguyên **100% độ chính xác trên tập `data/test` (`33/33`)** và **`Cosine Sim = 0.999192`** → lưu trực tiếp trong repo tại [`models/convnext_tiny_khoi_int8.onnx`](models/convnext_tiny_khoi_int8.onnx).
-   - **Phát hiện thực nghiệm quan trọng — Hiệu ứng phần cứng (*Hardware-Aware Optimization*, Colab Xeon vs Apple M2):**
-     - **Trên CPU Intel Xeon ảo của Colab:** Dynamic INT8 **chậm hơn ONNX FP32** (`113.1 ms → 151.1 ms`, tỷ lệ `0.75x`). **Lý do:** Xeon đời cũ trên Colab chỉ có AVX2 (thiếu tập lệnh tăng tốc INT8 `AVX-512 VNNI`), trong khi các tầng đầu `ConvNeXt` có feature map lớn (`56×56`, `28×28`) nên chi phí ép kiểu động `DynamicQuantizeLinear` qua 36 lớp `MatMul` lớn hơn lợi ích nhân INT8.
-     - **Trên CPU Apple M2 (ARM64):** Dynamic INT8 **nhanh vượt trội** — tụt từ **`39.97 ms` (FP32) xuống chỉ còn `23.81 ms/ảnh` (`42.0 FPS`, nhanh hơn 1.68x)**! Cộng cả decode + resize ảnh (`1.28 ms`) tổng End-to-End chỉ **`~25.1 ms`**. **Lý do:** Kiến trúc Apple Silicon (ARMv8.2+) tích hợp sẵn tập lệnh nhân ma trận INT8 gốc (`DotProd / i8mm`) cùng băng thông bộ nhớ hợp nhất lớn, nên vừa khai thác triệt để phép nhân INT8 vừa tiết kiệm **3.29x băng thông nạp trọng số**.
-     - **Trên Apple M2 CoreML (`CoreMLExecutionProvider`):** Chậm hơn CPU thuần (`99.16 ms`) do đồ thị `ConvNeXt-Tiny` có các toán tử như `LayerNorm` không được CoreML hỗ trợ liền mạch nên bị cắt thành **60 phân mảnh nhỏ** (`213/290 nodes`) phải copy dữ liệu qua lại giữa CoreML và CPU.
-   - **Static Quantization (`--mode static`, QDQ + `quant_pre_process` + Calibration 150 ảnh rải đều 38 lớp):** Hỗ trợ tính cố định `scale/zero_point` trước khi deploy để loại bỏ hoàn toàn bước `DynamicQuantizeLinear` khi chạy trên các CPU server hỗ trợ INT8.
-3. **Backend FastAPI Plug & Play chuẩn Production ([`backend/main.py`](backend/main.py), [`backend/service.py`](backend/service.py)):**
-   - **Model Factory & Lazy-import PyTorch:** Hỗ trợ 10 kiến trúc `.pth` **VÀ** chạy trực tiếp `.onnx` (FP32 / INT8) mà **không cần cài hay nạp PyTorch (~2 GB)** vào RAM.
-   - **Warmup, Non-blocking & SHA-256 LRU Cache:** Tự động warmup lúc startup, chạy suy luận qua `run_in_threadpool`, và cache 256 ảnh gần nhất theo **SHA-256** (ảnh lặp lại trả kết quả trong **`< 0.5 ms`**, `cache_hit: true`).
-   - **Giải thích trực quan XAI (`POST /api/predict` & `/explain`):** Trích xuất **Exact Class Activation Mapping (CAM / Grad-CAM)** trực tiếp từ feature map `7×7` trước `GlobalAveragePool` của đồ thị ONNX INT8 (chỉ **1 lần chạy ~26 ms**, thuần ONNX/NumPy/PIL — **không cần PyTorch/OpenCV**), trả về đồng thời ảnh gốc + lớp phủ RGBA trong suốt (`heatmap_only_base64`) để Frontend React kéo độ mờ 60fps & kéo Before/After không cần gọi lại API.
-   - **Khuyến nghị nông học (`backend/agronomy.py`) & Ảnh mẫu (`GET /api/samples`):** Tự động trả tóm tắt triệu chứng, hướng xử lý & phòng ngừa cho toàn bộ 38 lớp PlantVillage, kèm endpoint đọc ảnh mẫu chống path traversal.
-   - **Giám sát trực tuyến (`GET /api/metrics` — Chip Huyen Ch. 8):** Theo dõi real-time tổng request, latency `avg / p50 / p95`, `cache_hit_rate`, tỷ lệ ảnh `is_uncertain`, top 5 bệnh hay gặp và lịch sử 100 request gần nhất (`history[]`) cho biểu đồ Recharts.
-   - **Suy luận theo lô (`POST /api/predict-batch`) & Input Guards:** Xử lý tối đa 32 ảnh/lần gọi ONNX, đọc giới hạn bộ nhớ (`MAX_UPLOAD_BYTES + 1`), chặn file sai định dạng/ảnh hỏng (`400`), file > 10 MB (`413`), và cảnh báo độ tin cậy thấp (`is_uncertain`).
-   - **Docker siêu nhẹ ([`backend/Dockerfile`](backend/Dockerfile)):** Dùng `python:3.11-slim` + [`backend/requirements-onnx.txt`](backend/requirements-onnx.txt) (không có PyTorch) → đóng gói image chỉ **~280 MB** thay vì ~4 GB, kèm sẵn `HEALTHCHECK`.
-   - **Automated Tests ([`tests/test_api.py`](tests/test_api.py)):** **17/17 test case `pytest` PASS trong `1.04s`** trên Apple M2 (không cần cài PyTorch).
-4. **Ứng dụng Rust vào 2 điểm nút cổ chai thực tế ([`backend/rust/`](backend/rust/)):**
-   - **🦀 `data-audit` ([`backend/rust/src/bin/data_audit.rs`](backend/rust/src/bin/data_audit.rs)) — Kiểm định dữ liệu đa luồng (`rayon` + `sha2` + `image`):** Khai thác toàn bộ nhân CPU để kiểm tra ảnh hỏng, thống kê độ phân giải và tính SHA-256 phát hiện rò rỉ dữ liệu `train ↔ valid` trên 87.867 ảnh nhanh hơn nhiều lần so với Python đơn luồng.
-   - **🦀 `plant-disease-api` ([`backend/rust/src/main.rs`](backend/rust/src/main.rs)) — Serving API hiệu năng cao (`axum` + `ort` + `image`):** Giải mã & resize ảnh bằng native Rust (không có Python GIL), chạy trực tiếp model `.onnx` (FP32/INT8) với `GraphOptimizationLevel::Level3`, tiêu thụ RAM rất thấp và **giữ nguyên 100% JSON contract** của FastAPI (`/health`, `/predict`) nên Frontend Streamlit cắm vào chạy ngay không cần sửa code.
-
-### 4.4. Danh sách Thí nghiệm & Kết quả
-
-#### A. So sánh các Thí nghiệm Huấn luyện Mô hình
-
-| ID | Mô hình / Giai đoạn | Kỹ thuật chính | Val Acc | **Val Macro-F1** | **Test (33 ảnh)** | Dung lượng |
-|---|---|---|---:|---:|---:|---:|
-| **EXP-01** | `SimplePlantCNN` (Baseline 1) | 4 khối Conv+BN+ReLU+MaxPool, train từ đầu | — | *(baseline)* | — | `1.6 MB` |
-| **EXP-02** | `ConvNeXt-Tiny` (Phase 1) | Transfer Learning, đóng băng backbone (2 epochs) | 98.32% | **98.30%** | — | `106.2 MB` |
-| **EXP-03 ⭐** | **`ConvNeXt-Tiny` (Phase 2)** | **Full Fine-tuning (8 epochs), Diff LR, Label Smoothing, AMP** | **99.95%** | **99.95%** | **33/33 (100%)** | `106.2 MB` |
-
-- **Kết quả chính thức từ `eval_engine.py` (EXP-03 trên 17.572 ảnh Validation, GPU Tesla T4):**
-  - **Macro F1 / Accuracy / Weighted F1 / Precision / Recall:** đều đạt **`99.95%`** (chỉ đoán sai ~9/17.572 ảnh trên 38 lớp).
-  - **GPU Latency / Throughput:** **`0.26 ms/ảnh`** — **`3,814.9 FPS`** (`27,849,350` tham số).
-  - **Tập kiểm thử độc lập `data/test`:** cả **ONNX FP32** (`avg conf 90.74%`) và **ONNX INT8** (`avg conf 90.79%`) đều đạt **`33/33 (100.00%)`** (ONNX FP32 khớp PyTorch với sai lệch `1.07e-06`; INT8 có `Cosine Sim = 0.9992`).
-
-#### B. Benchmark Tối ưu Triển khai & Phần cứng cho Model Thắng cuộc (`EXP-03`, 1 ảnh lẻ `224×224`)
-
-| Phần cứng & Runtime | Định dạng | Dung lượng | Avg Latency | p50 / p95 | Throughput | Nhận xét & Lý do kỹ thuật |
-|---|---|---:|---:|---:|---:|---|
-| **🏆 Apple M2 CPU (ARM64)** — ORT | **ONNX Dynamic INT8** | **`32.3 MB`** (**−3.29x**) | **`23.81 ms`** | `23.74 / 24.19 ms` | **`42.0 FPS`** | **Nhanh nhất & nhẹ nhất** (nhanh hơn FP32 `1.68x`, PyTorch Colab `7.3x`) nhờ tập lệnh INT8 gốc `ARM DotProd/i8mm` + giảm 3.29x băng thông RAM |
-| **Apple M2 CPU (ARM64)** — ORT | ONNX FP32 | `106.3 MB` | `39.97 ms` | `39.28 / 42.71 ms` | `25.0 FPS` | Nhanh gấp ~3x so với CPU ảo của Colab |
-| **Apple M2 CoreML/ANE** — ORT | ONNX FP32 | `106.3 MB` | `99.16 ms` | `93.26 / 121.53 ms` | `10.1 FPS` | Chậm hơn CPU thuần vì `ConvNeXt` bị cắt thành **60 phân mảnh nhỏ** (`213/290` nodes) qua lại CoreML ↔ CPU |
-| **Colab 2-vCPU (Xeon cũ)** — ORT | ONNX FP32 | `106.3 MB` | `118.9 ms` | — | `8.4 FPS` | Nhanh hơn PyTorch CPU (`1.46x`), tối ưu nhất trên CPU cũ không có VNNI |
-| **Colab 2-vCPU (Xeon cũ)** — ORT | ONNX Dynamic INT8 | `32.3 MB` | `151.1 ms` | — | `6.6 FPS` | Chậm hơn FP32 (`0.75x`) do Xeon cũ thiếu `AVX-512 VNNI` và chịu overhead `DynamicQuantizeLinear` |
-| **Colab 2-vCPU (Xeon cũ)** — PyTorch | PyTorch FP32 | `106.2 MB` | `173.0 ms` | — | `5.8 FPS` | Baseline CPU trước khi tối ưu ONNX |
-
-*(Chi phí giải mã JPEG + resize `224×224` + chuẩn hóa ImageNet trên Apple M2 chỉ **`1.28 ms`** → tổng End-to-End với ONNX INT8 là **`~25.1 ms`**. Ngoài ra repo đã sẵn sàng `--mode static` trong `scripts/quantize_onnx.py` và Rust API trong `backend/rust/` để mở rộng benchmark khi cần.)*
-
-#### Tiến trình huấn luyện chi tiết của EXP-03 (`ConvNeXt-Tiny` trên Colab GPU T4)
-
-| Giai đoạn | Epoch | Thời gian | Train Loss | Train Acc | Val Loss | Val Acc | Val Macro-F1 |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Phase 1 (Warmup Head) | 1/2 | 492.2s | 1.0792 | 92.72% | 0.8913 | 97.51% | 97.50% |
-| Phase 1 (Warmup Head) | 2/2 | 486.6s | 0.8828 | 97.47% | 0.8546 | 98.32% | 98.30% |
-| Phase 2 (Full Fine-tuning) | 1/12 | 564.2s | 0.7571 | 99.20% | 0.7124 | 99.49% | 99.48% |
-| Phase 2 (Full Fine-tuning) | 2/12 | 576.1s | 0.6992 | 99.66% | 0.6942 | 99.60% | 99.58% |
-| Phase 2 (Full Fine-tuning) | 3/12 | 583.4s | 0.6933 | 99.61% | 0.6921 | 99.54% | 99.53% |
-| Phase 2 (Full Fine-tuning) | 4/12 | 556.8s | 0.6863 | 99.71% | 0.6860 | 99.71% | 99.71% |
-| Phase 2 (Full Fine-tuning) | 5/12 | 556.9s | 0.6820 | 99.81% | 0.6830 | 99.78% | 99.78% |
-| Phase 2 (Full Fine-tuning) | 6/12 | 552.4s | 0.6795 | 99.85% | 0.6826 | 99.82% | 99.81% |
-| Phase 2 (Full Fine-tuning) | 7/12 | 563.0s | 0.6776 | 99.90% | 0.6781 | 99.92% | 99.92% |
-| **Phase 2 (Best ⭐)** | **8/12** | **560.2s** | **0.6758** | **99.94%** | **0.6771** | **99.95%** | **99.95%** |
-
-> **Nhận xét:** Ở Epoch 8 Phase 2, chênh lệch `Train Acc (99.94%)` và `Val Acc (99.95%)` gần như bằng 0, chứng tỏ chiến lược 2-Phase Fine-tuning + Label Smoothing + Augmentation chống overfitting rất hiệu quả.
+### 6.5. Hiện tượng đa bệnh học trên cùng một cây (Plant Co-Infection)
+Phân tích 236 bức ảnh thực địa ghi nhận hiện tượng sinh học tự nhiên quan trọng:
+- Có 123 trên 236 bức ảnh chứa từ 2 phiến lá trở lên.
+- **72 trên 123 cây (chiếm 58.5%)** xuất hiện hiện tượng các lá trên cùng một cây có trạng thái bệnh học khác nhau (ví dụ: các lá già bên dưới nhiễm đốm lá Septoria, các lá non bên trên còn xanh khỏe mạnh, hoặc cây bị nhiễm kép đồng thời cả nấm và virus).
+- **Ý nghĩa khoa học:** Hiện tượng này chứng minh rằng việc gán một nhãn duy nhất (Single-label Classification) cho toàn bộ bức ảnh chụp ngoài đồng ruộng là một sự đơn giản hóa bài toán quá mức. Việc bóc tách từng lá bằng YOLOv8n phản ánh chính xác bản chất sinh học tự nhiên của hệ sinh thái nông nghiệp.
 
 ---
 
-## 5. Kết luận & Hướng phát triển
+## 7. HIỆU NĂNG SUY LUẬN, DUNG LƯỢNG MÔ HÌNH & TRIỂN KHAI THỰC TẾ
 
-### 5.1. Kết luận
-- Dự án đã xây dựng trọn vẹn chuỗi giá trị Machine Learning từ **EDA → Data Pipeline chống rò rỉ → Huấn luyện Transfer Learning 2 giai đoạn (`ConvNeXt-Tiny` đạt `99.95%` Val Macro-F1 và `33/33 = 100%` trên `data/test`) → Xuất & nén ONNX (FP32/INT8) → Serving API Plug & Play (FastAPI & Rust) → Web Demo (Streamlit)**.
-- Thực nghiệm cho thấy rõ hiệu ứng **tối ưu theo phần cứng (*Hardware-Aware Optimization*)**: cùng file **ONNX Dynamic INT8 (`32.3 MB`, nhẹ hơn `3.29x`)**, trên CPU Xeon cũ của Colab chậm hơn FP32 (`151.1 ms` vs `118.9 ms`) do thiếu `AVX-512 VNNI`, nhưng trên **Apple M2 CPU (ARM64 DotProd/i8mm)** lại bứt phá xuống còn **`23.81 ms/ảnh` (`42.0 FPS`, nhanh hơn FP32 `1.68x` và nhanh hơn PyTorch Colab `7.3x`)** mà vẫn giữ **100% độ chính xác trên tập test**.
+### 7.1. Benchmark độ trễ chi tiết (P50, P95, P99) trên GPU và CPU
+Kiểm nghiệm thực tế qua 100 lần lặp liên tục trên phần cứng máy trạm (Intel CPU + NVIDIA RTX 3050 Laptop):
 
-### 5.2. Hạn chế & Hướng cải tiến tiếp theo
-1. **Kiểm chứng ngoài phòng lab (Domain Shift):** Bộ PlantVillage có nền xám đồng nhất; cần bổ sung ảnh lá chụp ngoài đồng ruộng (như PlantDoc) kèm `RandomErasing` / `Mixup` nếu đưa ra ứng dụng nông nghiệp thực địa.
-2. **Giải thích mô hình (XAI — Grad-CAM):** Tích hợp heatmap Grad-CAM hiển thị ngay trên Streamlit để chỉ rõ vùng đốm bệnh mô hình đang tập trung, tăng độ tin cậy cho người dùng.
-3. **Phân tích lỗi (Error Analysis):** Kiểm tra trực tiếp ~14 mẫu bị đoán sai trên `valid` và chấm độc lập trên 33 ảnh `data/test`.
-4. **Mở rộng bảng so sánh nhẹ (Edge/Mobile):** Đổi 1 dòng `MODEL_NAME = "efficientnet_b0"` trong notebook để bổ sung mốc so sánh siêu nhẹ (~20 MB, ~15–25 ms/ảnh).
+| Thành phần suy luận | Môi trường phần cứng | Độ trễ TB | P50 (Median) | P95 | P99 | Thông lượng (Throughput) |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: |
+| **ResNet-18 v2 (PyTorch FP32)** | GPU NVIDIA RTX 3050 | **2.06 ms** | 1.95 ms | 2.45 ms | 2.80 ms | **485.4 FPS** |
+| **ResNet-18 v2 (ONNX FP32)** | CPU đa luồng (x86_64) | **8.95 ms** | 8.70 ms | 10.20 ms | 11.50 ms | **111.7 FPS** |
+| **ResNet-18 v2 (ONNX INT8)** | CPU đa luồng (Tối ưu biên) | **6.71 ms** | 6.50 ms | 8.10 ms | 9.30 ms | **149.0 FPS** |
+| **YOLOv8n Leaf Detector** | GPU NVIDIA RTX 3050 | **5.58 ms** | 5.30 ms | 6.80 ms | 7.90 ms | **179.2 FPS** |
+| **Chuỗi 2 Tầng Toàn trình (End-to-End)** | GPU (YOLO + 3 lá ResNet) | **11.76 ms** | 11.20 ms | 14.50 ms | 16.80 ms | **85.0 FPS** |
+
+Toàn bộ chuỗi xử lý (phát hiện lá + cắt 3 lá + phân loại 3 lá + tổng hợp kết quả) chỉ mất **~11.76 ms/cây**, hoàn toàn vượt mức tiêu chuẩn thời gian thực (Real-time Video Processing $>30$ FPS).
+
+### 7.2. Lượng tử hóa INT8 và tối ưu hóa dung lượng cho thiết bị biên (Edge)
+Mô hình sau huấn luyện được chuyển đổi sang định dạng mở ONNX và lượng tử hóa động (Dynamic Quantization INT8):
+- **Checkpoint PyTorch gốc:** `resnet18_long_v2_finetuned_best.pth` — **44.8 MB** (Phù hợp cho máy chủ GPU, huấn luyện tiếp tục).
+- **Mô hình xuất xưởng ONNX INT8:** `resnet18_long_v2_finetuned_best_int8.onnx` — **10.7 MB** (Dung lượng giảm hơn $4\times$, bộ nhớ RAM yêu cầu $<50$ MB, chạy mượt mà trên Raspberry Pi, thiết bị nhúng nông nghiệp hoặc điện thoại di động mà không cần GPU rời).
+
+### 7.3. Thiết kế kiến trúc dịch vụ API và giao diện ứng dụng
+Hệ thống được thiết kế theo kiến trúc vi dịch vụ (Microservices):
+1. **Lớp dịch vụ Backend (FastAPI):**
+   - Endpoint `POST /predict/photo`: Nhận ảnh chụp ngoài ruộng, kích hoạt pipeline 2 tầng, trả về danh sách các lá phát hiện được cùng chẩn đoán tổng hợp của cây dưới dạng JSON chuẩn.
+2. **Lớp giao diện ứng dụng (Streamlit / Mobile Web UI):**
+   - Hiển thị ảnh gốc kèm các khung chữ nhật bao quanh từng phiến lá (vẽ bằng màu sắc tương ứng: xanh lá = khỏe mạnh, đỏ = nhiễm bệnh).
+   - Hiển thị biểu đồ phân phối xác suất Top-3 và đưa ra khuyến nghị phòng trừ sâu bệnh học.
 
 ---
 
-## 6. Cấu trúc thư mục & Hướng dẫn chạy nhanh
+## 8. HẠN CHẾ CỦA NGHIÊN CỨU & HƯỚNG PHÁT TRIỂN
 
-```text
-plant-disease-ml/
-├── scripts/
-│   ├── download_data.py              # Tự động tải & giải nén dataset từ Google Drive
-│   └── quantize_onnx.py              # Nén ONNX FP32 → INT8 & benchmark kích thước/latency/F1
-├── notebooks/
-│   ├── eda_and_inspection.py         # Thống kê phân phối 38 lớp & xuất class_indices.json
-│   ├── data_pipeline.py              # DataLoader chuẩn dùng chung cho cả nhóm
-│   ├── eval_engine.py                # Bộ chấm điểm chuẩn (Macro-F1, Accuracy, Latency, Size)
-│   ├── baseline1_simple_cnn.py       # Baseline 1: Vanilla CNN từ đầu
-│   └── 03_convnext_tiny_khoi.ipynb   # Notebook Colab T4: ConvNeXt-Tiny + ONNX + INT8
-├── models/                           # Checkpoints (.pth), ONNX (.onnx, _int8.onnx), class_indices.json
-├── backend/                          # Tầng Serving Python (FastAPI /api/* + agronomy.py + Dockerfile)
-│   └── rust/                         # Tầng tối ưu Rust (plant-disease-api & data-audit CLI)
-├── frontend/                         # Tầng Web UI (React + Vite + TypeScript + Tailwind CSS + Recharts)
-├── tests/                            # Bộ kiểm thử tự động pytest cho Backend API (17 test cases)
-└── run_dev.sh                        # Script khởi chạy song song Backend (:8000) & Frontend (:5173)
-```
+Dưới góc độ phản biện học thuật nghiêm túc, nghiên cứu thẳng thắn ghi nhận các giới hạn kỹ thuật cần tiếp tục hoàn thiện:
 
-### Bước 1: Tải dữ liệu (nếu chưa có `data/`)
-```bash
-python scripts/download_data.py
-# Hoặc nếu đã tải sẵn file nén về ~/Downloads:
-python scripts/download_data.py --file ~/Downloads/data.tar.gz
-```
+1. **Quy mô mẫu của tập kiểm định ngoại cảnh:**
+   - Tập test của PlantDoc chỉ có 236 bức ảnh trải rộng trên 28 lớp, trung bình chỉ có khoảng 8 ảnh/lớp. Một sai số nhỏ (chẩn đoán sai 1 ảnh) có thể làm dao động độ chính xác của lớp đó từ 10% đến 12%.
+   - Cần tiếp tục thu thập thêm dữ liệu thực địa tại các nông trại Việt Nam để xây dựng bộ benchmark quy mô lớn hơn (>1.000 ảnh).
+2. **Các lớp bệnh học chưa có mặt ngoài thực địa:**
+   - Trong 38 lớp của mô hình, có 10 lớp bệnh hoàn toàn không xuất hiện mẫu ngoài thực địa trong PlantDoc. Hiệu năng của 10 lớp này hiện chỉ được bảo đảm thông qua cơ chế mỏ neo phòng lab mà chưa được kiểm chứng ngoại cảnh.
+3. **Sự đánh đổi trong chiến lược cảnh báo dịch hại (Trade-off):**
+   - Chiến lược 2 (Any-Hit) tối ưu hóa độ nhạy (Recall) để không bỏ sót ổ dịch, nhưng có thể làm tăng tỷ lệ dương tính giả (False Positive) đối với những cây thực sự khỏe mạnh nếu YOLO cắt trúng một mẩu rác vàng úa và mô hình nhận diện nhầm thành bệnh.
+4. **Hướng phát triển tiếp theo:**
+   - Áp dụng kỹ thuật Tăng cường thời gian suy luận (Test-Time Augmentation - TTA): Suy luận nhiều góc xoay và lấy trung bình xác suất để tăng thêm 1-2% độ chính xác.
+   - Bầu chọn có trọng số không gian (Confidence & Bounding Box Area Weighted Voting): Nhân xác suất phân loại với diện tích của phiến lá để ưu tiên các lá chụp rõ ở cận cảnh.
 
-### Bước 2: Nén ONNX sang INT8 (Dynamic / Static) & đo benchmark
-```bash
-pip install -r backend/requirements.txt
+---
 
-# 1. Dynamic INT8 (không cần calibration, giảm 3.29x dung lượng -> 32.3 MB):
-python scripts/quantize_onnx.py --mode dynamic \
-  --input models/convnext_tiny_khoi.onnx \
-  --output models/convnext_tiny_khoi_int8.onnx \
-  --eval-valid --data-dir data --max-samples 1600
+## 9. DANH MỤC TÀI LIỆU & TỆP THỰC NGHIỆM (ARTIFACT DIRECTORY)
 
-# 2. Static INT8 (dùng 150 ảnh calibration rải đều 38 lớp, bỏ overhead DynamicQuantizeLinear):
-python scripts/quantize_onnx.py --mode static \
-  --input models/convnext_tiny_khoi.onnx \
-  --output models/convnext_tiny_khoi_static_int8.onnx \
-  --data-dir data --calib-samples 150 --eval-valid --max-samples 1600
-```
+### 9.1. Hệ thống Notebook thực nghiệm (Đồng bộ từ 00 đến 08)
+Toàn bộ quy trình nghiên cứu được lưu trữ mạch lạc trong 9 Jupyter Notebook, 100% các ô mã lệnh đã được thực thi và lưu lại kết quả hiển thị:
 
-### Bước 3A: Chạy Backend Python (FastAPI — mặc định dùng ONNX INT8, không cần PyTorch)
-```bash
-pip install -r backend/requirements-onnx.txt
-uvicorn backend.main:app --reload --port 8000
-# Swagger UI: http://localhost:8000/docs (GET /health, /metrics · POST /predict, /predict/batch, /explain)
-# Chạy kiểm thử tự động API:
-pytest -v tests/test_api.py
+- [notebooks/00_kham_pha_va_tien_xu_ly_anh_la_cay.ipynb](notebooks/00_kham_pha_va_tien_xu_ly_anh_la_cay.ipynb): Khám phá hình ảnh, giải thích trực quan các phép biến đổi màu sắc, lọc cạnh và xử lý ảnh lá cây.
+- [notebooks/01_eda_and_data_pipeline.ipynb](notebooks/01_eda_and_data_pipeline.ipynb): Phân tích phân phối 38 lớp PlantVillage, xây dựng PyTorch Dataset và DataLoader chuẩn.
+- [notebooks/02_baseline1_simple_cnn.ipynb](notebooks/02_baseline1_simple_cnn.ipynb): Huấn luyện mô hình cơ sở Simple CNN từ con số 0 (From Scratch) làm mốc đối chứng.
+- [notebooks/03_train_resnet18_v2.ipynb](notebooks/03_train_resnet18_v2.ipynb): Huấn luyện ResNet-18 v2 đạt 99.16% F1 trên dữ liệu phòng lab PlantVillage.
+- [notebooks/04_plantdoc_eda_and_yolo_extraction.ipynb](notebooks/04_plantdoc_eda_and_yolo_extraction.ipynb): Phân tích PlantDoc, tích hợp YOLOv8n bóc tách 13.960 phiến lá sạch ngoại cảnh.
+- [notebooks/05_plantdoc_field_evaluation.ipynb](notebooks/05_plantdoc_field_evaluation.ipynb): Thử nghiệm chuyển giao ban đầu và đánh giá hiện tượng sụp đổ hiệu năng ngoài thực địa.
+- [notebooks/06_model_evaluation_and_analysis.ipynb](notebooks/06_model_evaluation_and_analysis.ipynb): Phân tích lỗi mô hình, so sánh ma trận nhầm lẫn và kiểm toán rò rỉ dữ liệu.
+- [notebooks/07_fine_tune_resnet18_early_stopping.ipynb](notebooks/07_fine_tune_resnet18_early_stopping.ipynb): Huấn luyện thích nghi miền 2:1 với Differential LR, AMP FP16, Label Smoothing và Early Stopping.
+- [notebooks/08_master_benchmark_and_system_evaluation.ipynb](notebooks/08_master_benchmark_and_system_evaluation.ipynb): **Notebook bảng điều khiển trung tâm (Dashboard)** tổng hợp toàn bộ các chỉ số, ma trận nhầm lẫn và đo đạc độ trễ phần cứng thực tế.
 
-# Hoặc đóng gói & chạy bằng Docker siêu nhẹ (~280 MB, không PyTorch):
-docker build -f backend/Dockerfile -t plant-disease-api:onnx .
-docker run -p 8000:8000 plant-disease-api:onnx
-```
-
-### Bước 3B: Chạy bản tối ưu bằng Rust (Serving API & Data Audit)
-*(Cài Rust nếu máy chưa có: `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`)*
-```bash
-# 1. Quét toàn vẹn & phát hiện rò rỉ SHA-256 trên 87.867 ảnh (đa luồng Rayon):
-cargo run --manifest-path backend/rust/Cargo.toml --release --bin data-audit -- --data-dir data
-
-# 2. Chạy Rust Inference API (thay thế FastAPI trên cổng 8000, cắm thẳng vào Streamlit):
-MODEL_PATH="models/convnext_tiny_khoi_int8.onnx" \
-MAPPING_PATH="models/class_indices.json" \
-cargo run --manifest-path backend/rust/Cargo.toml --release --bin plant-disease-api
-```
-
-### Bước 4: Khởi chạy nhanh song song Backend + Frontend React (1 lệnh duy nhất)
-```bash
-./run_dev.sh
-# Frontend React (Vite) : http://localhost:5173
-# Backend FastAPI       : http://127.0.0.1:8000/docs
-```
-
-Hoặc chạy riêng Frontend React:
-```bash
-cd frontend && npm install && npm run dev
-```
+### 9.2. Danh mục mô hình & Tệp báo cáo dữ liệu
+- **Mô hình xuất xưởng:**
+  - Checkpoint PyTorch chính thức: [models/resnet18_long_v2_finetuned_best.pth](models/resnet18_long_v2_finetuned_best.pth) (44.8 MB)
+  - Mô hình ONNX INT8 tối ưu nhúng: [models/resnet18_long_v2_finetuned_best_int8.onnx](models/resnet18_long_v2_finetuned_best_int8.onnx) (10.7 MB)
+  - Bộ định vị lá YOLOv8n: `models/yolo/yolov8n_leaf.pt` (6.0 MB)
+- **Tệp dữ liệu kiểm định & Báo cáo thực nghiệm:**
+  - Sổ đăng ký mô hình: [models/model_registry.csv](models/model_registry.csv)
+  - Lịch sử huấn luyện 12 epochs: [models/finetune_history_resnet18_v2.csv](models/finetune_history_resnet18_v2.csv)
+  - Bảng chi tiết 236 ảnh thực địa: [plantdoc_two_stage_detailed_results.csv](notebooks/eda_reports/plantdoc_two_stage_detailed_results.csv)
+  - Báo cáo phân loại 27 lớp: [plantdoc_per_class_classification_report.csv](notebooks/eda_reports/plantdoc_per_class_classification_report.csv)
+  - Ma trận nhầm lẫn thực nghiệm: [confusion_matrix_test_691_leaves.csv](notebooks/eda_reports/confusion_matrix_test_691_leaves.csv)
+  - Đồ thị ma trận nhầm lẫn: [confusion_matrix_test_691_leaves.png](notebooks/eda_reports/confusion_matrix_test_691_leaves.png)
+  - Báo cáo phân chia kháng rò rỉ: [plantdoc_train_val_split_manifest.json](notebooks/eda_reports/plantdoc_train_val_split_manifest.json)
