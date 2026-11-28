@@ -38,3 +38,8 @@ models/convnext_tiny_khoi.onnx
 .DS_Store
 .vscode/
 .idea/
+
+# Bộ chia lại từ PlantVillage gốc (scripts/split_plantvillage.py) — ~1 GB, không commit
+data_v2/
+data_v2_aug/
+data_v3/
